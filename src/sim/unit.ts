@@ -1,8 +1,7 @@
 import { toLocal, type Frame } from './geometry';
-import type { MoraleState, Order, Stance, UnitType } from './types';
+import type { AutofireRange, FormationDef, Order, UnitStatus, UnitType } from './types';
 
 export class Unit implements Frame {
-  // Position of the formation centre, and facing in radians.
   x: number;
   z: number;
   facing: number;
@@ -10,49 +9,60 @@ export class Unit implements Frame {
   prevZ: number;
   prevFacing: number;
 
-  men: number;
-  readonly maxMen: number;
-  /** Fractional casualties waiting to become whole men. */
-  private woundAcc = 0;
-  /** Men lost during the current tick (feeds morale). */
-  lostThisTick = 0;
+  hp: number;
+  readonly maxHp: number;
+  org: number;
+  readonly baseMaxOrg: number;
+  stamina: number;
+  status: UnitStatus = 'standing';
 
-  /** Current frontage in files (float while reforming) and the frontage being reformed to. */
-  files: number;
-  targetFiles: number;
+  formation: string;
+  /** Formation change in progress: footprint and flank rules switch at once, stats on completion (wiki). */
+  pending: { to: string; ticksLeft: number } | null = null;
+  changedFormationThisTurn = false;
 
-  morale = 100;
-  moraleCap = 100;
-  state: MoraleState = 'steady';
-  stateTime = 0;
-  rallies = 0;
-
-  stance: Stance = 'hold';
-  fireAtWill = true;
   order: Order | null = null;
-
-  speedNow = 0;
-  running = false;
-  runTime = 0;
-  /** Seconds the unit was moving backwards this tick (used for "retreating in order"). */
-  backing = false;
-  fatigue = 0;
-
+  autofire: AutofireRange = 'max';
   ammo: number;
-  reloadT = 0;
-  /** Seconds since last melee contact / missile hit. */
-  sinceMelee = 999;
-  sinceShot = 999;
-  /** Seconds since this unit's charge impacted; the charge bonus fades over a few seconds. */
-  sinceCharge = 999;
-  /** Ids of enemy units currently in contact (rebuilt each tick). */
+
+  // Status effects, in ticks remaining.
+  bim = 0; // Has Been In Melee
+  takenFire = 0; // Has Taken Fire
+  takenFireStrength = 0;
+  hasRan = 0;
+  startedRouting = 0;
+  rotated180 = 0;
+  runResetBlock = 0;
+  /** Ticks spent routing (dispersed pass-through lasts DISPERSED_TICKS). */
+  routTicks = 0;
+  /** Ticks since last attacked (melee or ranged). */
+  sinceAttacked = 999;
+
+  /** Charge run-up 0..1; charge-ready at 1. */
+  runRamp = 0;
+  running = false;
+  moving = false;
+  /** Direction of travel on the last sub-step (for the "pointed at the target" charge rule). */
+  velX = 0;
+  velZ = 0;
+  elevationLevel = 0;
+
+  /** Enemy ids in contact (rebuilt each sub-step) and as of the previous tick. */
   contacts: number[] = [];
-  /** Ids in contact last tick, to detect fresh impacts. */
-  prevContacts = new Set<number>();
-  /** Melee pressure felt this tick (feeds morale). */
-  pressure = { flank: false, rear: false, fear: false };
-  /** Free-form AI memory. */
-  ai: { role?: string; resting?: boolean; post?: { x: number; z: number }; until?: number } = {};
+  prevTickContacts = new Set<number>();
+  /** Max overlap with allies this tick (fraction of the smaller footprint), and the hard part of it. */
+  overlap = 0;
+  hardOverlap = 0;
+  /** Last tick's organization breakdown, per turn, for the unit card. */
+  orgReport = { recovery: 0, nearby: 0, suppression: 0, max: 0 };
+  fleeAngle = 0;
+  /** Small random deviation chosen when the unit breaks. */
+  fleeDev = 0;
+  /** Ticks during which this unit is revealed to the enemy because it fired. */
+  revealed = 0;
+  /** Distance to the locked target on the previous tick (Fallback backs away only while it closes). */
+  lastTargetDist = Infinity;
+  ai: { role?: string; post?: { x: number; z: number } } = {};
 
   constructor(
     readonly id: number,
@@ -62,55 +72,83 @@ export class Unit implements Frame {
     x: number,
     z: number,
     facing: number,
-    men: number,
+    readonly strength: number,
     readonly general = false,
     readonly reserve = false,
   ) {
     this.x = this.prevX = x;
     this.z = this.prevZ = z;
     this.facing = this.prevFacing = facing;
-    this.men = this.maxMen = men;
-    this.files = this.targetFiles = Math.min(type.files, Math.ceil(men / type.minRanks));
-    this.ammo = type.ammo ?? 0;
+    this.maxHp = this.hp = type.hp * strength;
+    this.baseMaxOrg = this.org = type.org;
+    this.stamina = type.stamina;
+    this.formation = type.defaultFormation;
+    this.ammo = type.ranged?.ammo ?? 0;
   }
 
   get alive(): boolean {
-    return this.state !== 'gone' && this.men > 0;
+    return this.status === 'standing' || this.status === 'recovering' || this.status === 'routing';
   }
 
-  /** Can take orders: not routing, retreating, rallying or gone. */
-  get controllable(): boolean {
-    return this.state === 'steady' || this.state === 'wavering';
+  /** Only standing units take orders, see for the team and capture. */
+  get standing(): boolean {
+    return this.status === 'standing';
   }
 
-  get fileCount(): number {
-    return Math.max(1, Math.min(Math.round(this.files), this.men));
+  get routing(): boolean {
+    return this.status === 'routing';
   }
 
-  get ranks(): number {
-    return Math.max(1, Math.ceil(this.men / this.fileCount));
+  /** The footprint uses the incoming formation as soon as a change is ordered (wiki: half-changed units). */
+  get shapeFormation(): string {
+    return this.routing ? 'dispersed' : this.pending?.to ?? this.formation;
+  }
+
+  get footprint(): [number, number] {
+    const f = this.type.formations[this.shapeFormation] ?? this.type.formations[this.type.defaultFormation];
+    const s = Math.sqrt(this.strength);
+    if (this.routing) {
+      const base = this.type.formations[this.type.defaultFormation];
+      return [base[0] * 1.2 * s, Math.max(base[1] * 1.6, 16) * s];
+    }
+    return [f[0] * s, f[1] * s];
   }
 
   get frontage(): number {
-    return this.fileCount * this.type.spacing[0];
+    return this.footprint[0];
   }
 
   get depth(): number {
-    return this.ranks * this.type.spacing[1];
+    return this.footprint[1];
   }
 
   get radius(): number {
-    return Math.hypot(this.frontage, this.depth) / 2;
+    const [w, d] = this.footprint;
+    return Math.hypot(w, d) / 2;
   }
 
-  get resilience(): number {
-    return this.type.morale / 5;
+  get hpFrac(): number {
+    return Math.max(0, this.hp / this.maxHp);
   }
 
-  /** Frontage limits when reforming: between maxRanks deep and minRanks deep. */
-  filesRange(men = this.men): [number, number] {
-    const t = this.type;
-    return [Math.max(1, Math.ceil(men / t.maxRanks)), Math.max(1, Math.ceil(men / t.minRanks))];
+  get staminaFrac(): number {
+    return Math.max(0, this.stamina / this.type.stamina);
+  }
+
+  /** Org as a fraction of base max (negative while routing). */
+  get orgFrac(): number {
+    return this.org / this.baseMaxOrg;
+  }
+
+  /** Current maximum organization: heavy HP loss and low stamina lower it (wiki). */
+  get maxOrg(): number {
+    const s = this.staminaFrac;
+    const stam = s <= 0.4 ? 0.85 : s >= 0.85 ? 1 : 0.85 + 0.15 * ((s - 0.4) / 0.45);
+    return this.baseMaxOrg * (1 - 0.5 * (1 - this.hpFrac)) * stam;
+  }
+
+  figuresShown(): number {
+    return Math.max(0, Math.ceil(this.type.figures * this.strength * this.hpFrac));
   }
 
   contains(px: number, pz: number, margin = 0): boolean {
@@ -118,25 +156,10 @@ export class Unit implements Frame {
     return Math.abs(f) <= this.depth / 2 + margin && Math.abs(l) <= this.frontage / 2 + margin;
   }
 
-  /** Apply (possibly fractional) casualties. Returns whole men lost. */
-  wound(kills: number): number {
-    if (kills <= 0 || this.men <= 0) return 0;
-    this.woundAcc += kills;
-    const whole = Math.min(this.men, Math.floor(this.woundAcc));
-    this.woundAcc -= whole;
-    this.men -= whole;
-    this.lostThisTick += whole;
-    return whole;
-  }
-
-  get lostFraction(): number {
-    return 1 - this.men / this.maxMen;
-  }
-
-  setState(s: MoraleState) {
-    if (s === this.state) return;
-    this.state = s;
-    this.stateTime = 0;
-    if (s !== 'steady' && s !== 'wavering') this.order = null;
+  /** Formations this unit can take, in hotkey order (R, T, F, G). */
+  formationSlots(): string[] {
+    return Object.keys(this.type.formations);
   }
 }
+
+export type FormationTable = Record<string, FormationDef>;

@@ -1,0 +1,29 @@
+{
+  "id": "dispersed",
+  "name": "Dispersed",
+  "walkMod": 0,
+  "runMod": 0,
+  "turnRate": 1440,
+  "speedFloor": 0.3,
+  "aboutFace": false,
+  "fire": "all",
+  "arc": 360,
+  "emitters": 1,
+  "flank": null,
+  "rearFireVulnerable": false,
+  "rangedAttackMod": 0.8,
+  "rangedTakenMod": -0.25,
+  "meleeTakenMod": 0.35,
+  "chargeResMod": 0,
+  "ownChargeMod": 0,
+  "flankChargeRes": 0,
+  "orgTakenMod": 0,
+  "formTicks": 0,
+  "breakTicks": 0,
+  "selectable": false,
+  "collision": {
+    "ally": -1,
+    "enemy": 0
+  },
+  "note": "Not selectable: the formation a routed unit falls into. It passes through enemies for a while."
+}

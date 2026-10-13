@@ -1,25 +1,57 @@
 {
   "id": "war-elephants",
   "name": "War Elephants",
-  "class": "elephant",
-  "men": 12,
-  "hp": 14,
-  "attack": 30,
-  "charge": 55,
-  "armor": 7,
-  "speed": 2.8,
-  "runSpeed": 4.6,
-  "turnRate": 28,
-  "morale": 6,
-  "files": 6,
-  "minRanks": 1,
-  "maxRanks": 4,
-  "spacing": [
-    6,
-    7
-  ],
+  "category": "elephant",
+  "figures": 12,
+  "canCapture": false,
+  "captureRate": 0,
+  "hp": 700,
+  "org": 480,
+  "stamina": 1100,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.3,
+    "rally": 0.55,
+    "shatter": -0.3
+  },
+  "walk": 65,
+  "run": 105,
+  "formations": {
+    "elephant": [
+      44,
+      18
+    ]
+  },
+  "defaultFormation": "elephant",
+  "melee": {
+    "attack": 70,
+    "defense": 50,
+    "weapon": {
+      "name": "Tusks and howdah",
+      "orgRatio": 420,
+      "bimTicks": 6,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher",
+        "cavalry",
+        "elephant"
+      ]
+    },
+    "chargeBonus": 120,
+    "chargeResistance": 0.3,
+    "runChargeResMod": 0.2,
+    "chargePenetration": 0.8,
+    "flankPenBonus": 0.3,
+    "flankOrgMod": 0.6
+  },
+  "orgRadius": 100,
+  "orgRadiusBonus": 10,
+  "panicDistance": 50,
+  "visibility": 1,
   "causesFear": true,
+  "stampede": true,
   "height": 4.2,
   "icon": "elephant",
-  "note": "Shock and terror. Horses fear them. If panicked they stampede, trampling friend and foe. Slow to run and tire quickly when they do."
+  "note": "Shock and terror: their presence drains enemy organization (large radius bonus). If they rout they stampede, trampling whatever they run through."
 }

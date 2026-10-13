@@ -86,6 +86,12 @@ export function drawSymbol(ctx: CanvasRenderingContext2D, icon: string, x: numbe
       diag();
       bow(cx + w * 0.18, cy, h * 0.6);
       break;
+    case 'unknown':
+      ctx.font = `bold ${Math.round(h * 0.9)}px Georgia, serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('?', cx, cy + h * 0.04);
+      break;
     default:
       cross();
   }

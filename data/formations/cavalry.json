@@ -1,0 +1,31 @@
+{
+  "id": "cavalry",
+  "name": "Cavalry",
+  "walkMod": 0,
+  "runMod": 0,
+  "turnRate": 720,
+  "speedFloor": 0.2,
+  "aboutFace": true,
+  "fire": "all",
+  "arc": 360,
+  "emitters": 1,
+  "flank": [
+    63.4,
+    116.6
+  ],
+  "rearFireVulnerable": false,
+  "rangedAttackMod": 0,
+  "rangedTakenMod": 0,
+  "meleeTakenMod": 0,
+  "chargeResMod": 0,
+  "ownChargeMod": 0,
+  "flankChargeRes": -0.2,
+  "orgTakenMod": 0,
+  "formTicks": 0,
+  "breakTicks": 0,
+  "collision": {
+    "ally": 2,
+    "enemy": 2
+  },
+  "note": "The single posture for all horsemen. Horse archers shoot all round."
+}

@@ -1,0 +1,31 @@
+{
+  "id": "column",
+  "name": "Column",
+  "walkMod": 0.1,
+  "runMod": 0.0,
+  "turnRate": 540,
+  "speedFloor": 0.1,
+  "aboutFace": true,
+  "fire": "front",
+  "arc": 40,
+  "emitters": 1,
+  "flank": [
+    37.9,
+    142.1
+  ],
+  "rearFireVulnerable": true,
+  "rangedAttackMod": -0.4,
+  "rangedTakenMod": 0.15,
+  "meleeTakenMod": 0.05,
+  "chargeResMod": 0.2,
+  "ownChargeMod": 0,
+  "flankChargeRes": -0.75,
+  "orgTakenMod": 0,
+  "formTicks": 2,
+  "breakTicks": 2,
+  "collision": {
+    "ally": 2,
+    "enemy": 2
+  },
+  "note": "Narrow and deep. Fast, turns quickly, braces well head-on, but almost any off-axis hit counts as a flank."
+}

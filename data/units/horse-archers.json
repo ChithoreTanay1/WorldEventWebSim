@@ -1,31 +1,92 @@
 {
   "id": "horse-archers",
   "name": "Horse Archers",
-  "class": "cavalry",
-  "men": 100,
-  "hp": 1.4,
-  "attack": 3,
-  "charge": 3,
-  "armor": 2,
-  "speed": 5.5,
-  "runSpeed": 12,
-  "turnRate": 90,
-  "morale": 6,
-  "range": 130,
-  "ammo": 32,
-  "accuracy": 0.06,
-  "reload": 3,
-  "fireArc": 360,
-  "fireOnMove": true,
-  "files": 25,
-  "minRanks": 2,
-  "maxRanks": 6,
-  "spacing": [
-    2.4,
-    3.4
-  ],
-  "loose": true,
+  "category": "cavalry",
+  "figures": 100,
+  "canCapture": false,
+  "captureRate": 0,
+  "hp": 450,
+  "org": 650,
+  "stamina": 1500,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.25,
+    "rally": 0.5,
+    "shatter": -0.3
+  },
+  "walk": 110,
+  "run": 240,
+  "formations": {
+    "cavalry": [
+      56,
+      8
+    ]
+  },
+  "defaultFormation": "cavalry",
+  "melee": {
+    "attack": 30,
+    "defense": 20,
+    "weapon": {
+      "name": "Cavalry sword",
+      "orgRatio": 310,
+      "bimTicks": 4,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher",
+        "cavalry",
+        "elephant"
+      ]
+    },
+    "chargeBonus": 30,
+    "chargeResistance": -0.1,
+    "runChargeResMod": 0.3,
+    "chargePenetration": 0.3,
+    "flankPenBonus": 0.2,
+    "flankOrgMod": 0.75
+  },
+  "ranged": {
+    "attack": 18,
+    "weapon": {
+      "name": "Horse bow",
+      "orgRatio": 380,
+      "enfilade": true,
+      "effective": 80,
+      "close": 35,
+      "bands": [
+        [
+          0,
+          30,
+          2.2,
+          1.5
+        ],
+        [
+          30,
+          70,
+          1.5,
+          0.3
+        ],
+        [
+          70,
+          110,
+          0.3,
+          -0.4
+        ],
+        [
+          110,
+          140,
+          -0.4,
+          -0.75
+        ]
+      ]
+    },
+    "ammo": 64
+  },
+  "orgRadius": 110,
+  "orgRadiusBonus": 4,
+  "panicDistance": 60,
+  "visibility": 1,
   "height": 2.2,
   "icon": "cav-archer",
-  "note": "Fast, loose, shoots on the move. Avoids melee; masters of the feigned retreat."
+  "note": "Fast and shoots all round from the saddle. Avoids melee; masters of the feigned retreat."
 }

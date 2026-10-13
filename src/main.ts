@@ -1,118 +1,153 @@
 import './style.css';
 import { Controls } from './input/controls';
 import { View } from './render/view';
-import { Battle, DT } from './sim/battle';
-import type { Scenario, UnitType } from './sim/types';
+import { Battle, type Frame } from './sim/battle';
+import type { FormationDef, Scenario, UnitType } from './sim/types';
 import { Hud, SPEEDS } from './ui/hud';
 
-// Data is discovered by folder: adding a unit type or scenario needs no code change.
+// Data is discovered by folder: new unit types, formations and scenarios need no code change.
 const unitFiles = import.meta.glob<UnitType>('/data/units/*.json', { eager: true, import: 'default' });
+const formFiles = import.meta.glob<FormationDef>('/data/formations/*.json', { eager: true, import: 'default' });
 const scenarioFiles = import.meta.glob<Scenario>('/data/scenarios/*.json', { eager: true, import: 'default' });
 const types: Record<string, UnitType> = Object.fromEntries(Object.values(unitFiles).map((t) => [t.id, t]));
+const forms: Record<string, FormationDef> = Object.fromEntries(Object.values(formFiles).map((f) => [f.id, f]));
 const scenarios = Object.values(scenarioFiles);
-const wanted = new URLSearchParams(location.search).get('scenario');
-const scenario = scenarios.find((s) => s.id === wanted) ?? scenarios[0];
+const params = new URLSearchParams(location.search);
+const scenario = scenarios.find((s) => s.id === params.get('scenario')) ?? scenarios[0];
+
+/** Real seconds per movement sub-step at 1x: a 16-tick turn plays in about 7.7 s. */
+const SUB_DT = 0.12;
 
 const app = document.getElementById('app')!;
 const canvas = document.createElement('canvas');
 canvas.className = 'scene';
 app.append(canvas);
 
-let battle = new Battle(scenario, types);
+let battle = new Battle(scenario, types, forms);
 const view = new View(canvas, battle);
-let paused = true;
 let speed = 0;
 let resultShown = false;
+let acc = 0;
+/** Replay of the last turn: index into lastTurnFrames, or null when live. */
+let replayAt: number | null = null;
 
-const resetCamera = () => view.rig.setView(330, 300, 330, Math.PI + 0.12, (46 * Math.PI) / 180);
+const resetCamera = () => view.rig.setView(320, 300, 360, Math.PI + 0.12, (50 * Math.PI) / 180);
 resetCamera();
-
-const hud: Hud = new Hud(app, battle, scenario, {
-  togglePause: () => togglePause(),
-  setSpeed: (i) => (speed = i),
-  stance: (s) => controls.stance(s),
-  toggleFire: () => controls.toggleFire(),
-  halt: () => controls.halt(),
-  topDown: () => view.rig.toggleTopDown(),
-  follow: () => controls.followSelected(),
-  select: (id) => {
-    controls.selection = new Set([id]);
-    hud.setSelection([id]);
-  },
-  restart: () => restart(),
-  begin: () => {},
-});
 
 const controls: Controls = new Controls(canvas, battle, view, {
   onSelection: (ids) => hud.setSelection(ids),
-  togglePause: () => togglePause(),
+  onGroups: () => hud.renderGroups(),
+  onOrderType: () => {},
+  endTurn: () => endTurn(),
+  replay: () => startReplay(),
   changeSpeed: (d) => (speed = Math.max(0, Math.min(SPEEDS.length - 1, speed + d))),
   toggleHelp: () => hud.toggleHelp(),
 });
 
-function togglePause() {
-  if (hud.dialogOpen || battle.result) return;
-  paused = !paused;
+const hud: Hud = new Hud(app, battle, scenario, controls, {
+  endTurn: () => endTurn(),
+  replay: () => startReplay(),
+  setSpeed: (i) => (speed = i),
+  restart: () => restart(),
+  select: (ids) => controls.select(ids),
+});
+
+function endTurn() {
+  if (hud.dialogOpen || replayAt !== null || battle.phase === 'resolving' || battle.result) return;
+  battle.endTurn();
+  acc = 0;
+}
+
+function startReplay() {
+  if (battle.phase === 'resolving' || battle.lastTurnFrames.length < 2) return;
+  replayAt = 0;
+  hud.mode = 'replay';
 }
 
 function restart() {
-  battle = new Battle(scenario, types);
+  battle = new Battle(scenario, types, forms);
   view.setBattle(battle);
   controls.setBattle(battle);
   hud.setBattle(battle);
   resultShown = false;
-  paused = true;
+  replayAt = null;
+  hud.mode = 'live';
   resetCamera();
 }
 
 window.addEventListener('resize', () => view.resize());
-
-let acc = 0;
-let last = performance.now();
-let hudTimer = 0;
-function frame(now: number) {
-  const dt = Math.min(0.1, (now - last) / 1000);
-  last = now;
-  if (!paused && !battle.result && !hud.dialogOpen) {
-    acc += dt * SPEEDS[speed];
-    let steps = 0;
-    while (acc >= DT && steps < 12) {
-      battle.step();
-      acc -= DT;
-      steps++;
-    }
-    if (steps === 12) acc = 0;
-  }
-  controls.update(dt);
-  view.frame(paused ? 1 : Math.min(1, acc / DT), dt, now / 1000);
-  hudTimer -= dt;
-  if (hudTimer <= 0) {
-    hudTimer = 0.12;
-    hud.update(paused, speed);
-  }
-  const hover = controls.hoverId !== null ? battle.unit(controls.hoverId) : null;
-  hud.showTooltip(hover && hover.alive ? hover : null, lastMouse.x, lastMouse.y);
-  if (battle.result && !resultShown) {
-    resultShown = true;
-    hud.update(paused, speed);
-    hud.showResult();
-  }
-  requestAnimationFrame(frame);
-}
 const lastMouse = { x: 0, y: 0 };
 window.addEventListener('pointermove', (e) => {
   lastMouse.x = e.clientX;
   lastMouse.y = e.clientY;
 });
 
-if (new URLSearchParams(location.search).get('brief') !== '0') hud.showBriefing();
+let last = performance.now();
+let hudTimer = 0;
+function frame(now: number) {
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  let a: Frame, b: Frame, alpha = 1;
+  if (replayAt !== null) {
+    const frames = battle.lastTurnFrames;
+    const before = Math.floor(replayAt);
+    if (!hud.dialogOpen) replayAt += (dt * SPEEDS[speed]) / SUB_DT;
+    const i = Math.min(frames.length - 2, Math.floor(replayAt));
+    for (let k = before + 1; k <= Math.min(i + 1, frames.length - 1); k++) view.spawnVolleys(frames[k].volleys);
+    a = frames[i];
+    b = frames[i + 1];
+    alpha = Math.min(1, replayAt - i);
+    if (replayAt >= frames.length - 1) {
+      replayAt = null;
+      hud.mode = 'live';
+    }
+  } else if (battle.phase === 'resolving') {
+    if (!hud.dialogOpen) acc += dt * SPEEDS[speed];
+    let steps = 0;
+    while (acc >= SUB_DT && steps < 10 && battle.phase === 'resolving') {
+      battle.stepSub();
+      const f = battle.frames[battle.frames.length - 1];
+      view.spawnVolleys(f.volleys);
+      acc -= SUB_DT;
+      steps++;
+    }
+    if (battle.phase === 'resolving') {
+      const n = battle.frames.length;
+      a = battle.frames[Math.max(0, n - 2)];
+      b = battle.frames[n - 1];
+      alpha = Math.min(1, acc / SUB_DT);
+    } else {
+      a = b = battle.snapshot();
+    }
+  } else {
+    a = b = battle.snapshot();
+  }
+  controls.update(dt);
+  const selected = [...controls.selection].map((id) => battle.unit(id));
+  view.frame(a.units, b.units, alpha, dt, now / 1000, selected);
+  hudTimer -= dt;
+  if (hudTimer <= 0) {
+    hudTimer = 0.12;
+    hud.update(speed, replayAt !== null);
+  }
+  const hover = controls.hoverId !== null ? battle.unit(controls.hoverId) : null;
+  hud.showTooltip(hover && hover.alive ? hover : null, lastMouse.x, lastMouse.y);
+  if (battle.result && !resultShown && battle.phase === 'ended') {
+    resultShown = true;
+    hud.update(speed, false);
+    hud.showResult();
+  }
+  requestAnimationFrame(frame);
+}
+
+if (params.get('brief') !== '0') hud.showBriefing();
 requestAnimationFrame(frame);
 
-// Handle for automated browser tests and debugging in the console.
+// Handle for automated browser tests and console debugging.
 (window as unknown as { __game: unknown }).__game = {
   get battle() { return battle; },
   view, controls, hud,
-  get paused() { return paused; },
-  setPaused: (p: boolean) => (paused = p),
   setSpeed: (i: number) => (speed = i),
+  endTurn,
+  get replaying() { return replayAt !== null; },
 };

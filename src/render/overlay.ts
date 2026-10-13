@@ -1,54 +1,78 @@
-// Order visuals draped over the terrain: one order line per unit from its position to its slot,
-// an arrow at the slot showing facing, ghost blocks while dragging, and the raw drag trail.
+// Order visuals draped over the terrain (wiki "Reading orders on the map"): this turn's movement is a
+// solid, type-coloured arrow ending in a ghost of the unit at its final position and facing; the
+// projected continuation of a multi-turn path is faded. Also the raw drag trail and lock-on lines.
 import {
   BoxGeometry, BufferAttribute, BufferGeometry, DoubleSide, EdgesGeometry, Group, Line, LineBasicMaterial,
   LineSegments, Mesh, MeshBasicMaterial, Shape, ShapeGeometry,
 } from 'three';
 import type { Terrain } from '../sim/terrain';
+import type { XZ } from '../sim/types';
 
-const SAMPLES = 28;
-const LIFT = 0.7;
+const LIFT = 0.8;
+const MAX_PTS = 256;
 
 class DrapedLine {
   readonly line: Line;
-  private readonly pos: Float32Array;
-  constructor(color: string, opacity: number) {
-    this.pos = new Float32Array(SAMPLES * 3);
+  private readonly pos = new Float32Array(MAX_PTS * 3);
+  readonly mat: LineBasicMaterial;
+  constructor() {
     const geo = new BufferGeometry();
     geo.setAttribute('position', new BufferAttribute(this.pos, 3));
-    this.line = new Line(geo, new LineBasicMaterial({ color, transparent: true, opacity, depthTest: false }));
+    this.mat = new LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.9, depthTest: false });
+    this.line = new Line(geo, this.mat);
     this.line.renderOrder = 5;
     this.line.frustumCulled = false;
   }
-  set(terrain: Terrain, ax: number, az: number, bx: number, bz: number) {
-    for (let i = 0; i < SAMPLES; i++) {
-      const t = i / (SAMPLES - 1);
-      const x = ax + (bx - ax) * t, z = az + (bz - az) * t;
-      this.pos.set([x, terrain.height(x, z) + LIFT, z], i * 3);
+  /** Drape a polyline, resampling long segments so it follows the ground. */
+  set(terrain: Terrain, pts: XZ[], color: string, opacity: number) {
+    let n = 0;
+    for (let i = 0; i < pts.length - 1 && n < MAX_PTS - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const steps = Math.max(1, Math.min(24, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 8)));
+      for (let k = 0; k < steps && n < MAX_PTS - 1; k++) {
+        const t = k / steps;
+        const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
+        this.pos.set([x, terrain.height(x, z) + LIFT, z], n++ * 3);
+      }
     }
+    const last = pts[pts.length - 1];
+    this.pos.set([last.x, terrain.height(last.x, last.z) + LIFT, last.z], n++ * 3);
+    this.line.geometry.setDrawRange(0, n);
     (this.line.geometry.getAttribute('position') as BufferAttribute).needsUpdate = true;
-    this.line.visible = true;
+    this.mat.color.set(color);
+    this.mat.opacity = opacity;
+    this.line.visible = n >= 2;
   }
 }
 
 export interface OrderVisual {
-  fromX: number;
-  fromZ: number;
-  toX: number;
-  toZ: number;
-  facing: number | null;
-  frontage: number;
-  depth: number;
-  kind: 'move' | 'attack' | 'preview';
+  /** Solid part: movement this turn. */
+  now: XZ[];
+  /** Faded part: the projected continuation (multi-turn paths). */
+  later: XZ[];
+  color: string;
+  ghost: { x: number; z: number; facing: number; frontage: number; depth: number } | null;
+  /** Draw an arrowhead at the end of `now` (move orders) or not (lock-on lines). */
+  arrow: boolean;
 }
+
+export const ORDER_COLORS: Record<string, string> = {
+  fireAdvance: '#ffb347',
+  run: '#ff6b52',
+  shoot: '#ff4f9a',
+  walk: '#9fd4ff',
+  fallback: '#b9a7ff',
+  rotate: '#e6e6e6',
+  follow: '#8fe3a8',
+  deploy: '#fff0b8',
+};
 
 export class OrderOverlay {
   readonly root = new Group();
   private lines: DrapedLine[] = [];
   private arrows: Mesh[] = [];
   private ghosts: Group[] = [];
-  private trail: Line;
-  private trailPos: Float32Array;
+  private readonly trail = new DrapedLine();
   private readonly arrowGeo: ShapeGeometry;
   private readonly box = new BoxGeometry(1, 1, 1);
 
@@ -61,23 +85,16 @@ export class OrderOverlay {
     tri.closePath();
     this.arrowGeo = new ShapeGeometry(tri);
     this.arrowGeo.rotateX(-Math.PI / 2);
-    this.trailPos = new Float32Array(512 * 3);
-    const g = new BufferGeometry();
-    g.setAttribute('position', new BufferAttribute(this.trailPos, 3));
-    this.trail = new Line(g, new LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.9, depthTest: false }));
-    this.trail.renderOrder = 6;
-    this.trail.frustumCulled = false;
-    this.trail.visible = false;
-    this.root.add(this.trail);
+    this.trail.line.visible = false;
+    this.root.add(this.trail.line);
   }
 
-  private line(i: number, color: string): DrapedLine {
+  private line(i: number): DrapedLine {
     while (this.lines.length <= i) {
-      const l = new DrapedLine('#ffffff', 0.9);
+      const l = new DrapedLine();
       this.lines.push(l);
       this.root.add(l.line);
     }
-    (this.lines[i].line.material as LineBasicMaterial).color.set(color);
     return this.lines[i];
   }
 
@@ -92,40 +109,41 @@ export class OrderOverlay {
     return this.arrows[i];
   }
 
-  private ghost(i: number): Group {
+  private ghost(i: number, color: string): Group {
     while (this.ghosts.length <= i) {
       const g = new Group();
-      const body = new Mesh(this.box, new MeshBasicMaterial({ color: '#fff0b8', transparent: true, opacity: 0.18, depthWrite: false }));
-      const edges = new LineSegments(new EdgesGeometry(this.box), new LineBasicMaterial({ color: '#fff0b8', transparent: true, opacity: 0.8 }));
-      g.add(body, edges);
+      g.add(
+        new Mesh(this.box, new MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.16, depthWrite: false })),
+        new LineSegments(new EdgesGeometry(this.box), new LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.8 })),
+      );
       this.ghosts.push(g);
       this.root.add(g);
     }
-    return this.ghosts[i];
+    const g = this.ghosts[i];
+    ((g.children[0] as Mesh).material as MeshBasicMaterial).color.set(color);
+    ((g.children[1] as LineSegments).material as LineBasicMaterial).color.set(color);
+    return g;
   }
 
-  /** Replace everything shown with these order visuals. */
   show(items: OrderVisual[]) {
     let li = 0, ai = 0, gi = 0;
     for (const it of items) {
-      const color = it.kind === 'attack' ? '#ff6b52' : it.kind === 'preview' ? '#ffe9a0' : '#d9f0ff';
-      this.line(li++, color).set(this.terrain, it.fromX, it.fromZ, it.toX, it.toZ);
-      if (it.facing !== null) {
-        const a = this.arrow(ai++, color);
-        const s = Math.max(1.3, Math.min(3.5, it.frontage / 12));
-        a.scale.setScalar(s);
-        a.rotation.y = -it.facing;
-        // Arrow sits just in front of the slot, pointing the way the unit will face.
-        const ax = it.toX + Math.cos(it.facing) * (it.depth / 2 + 3);
-        const az = it.toZ + Math.sin(it.facing) * (it.depth / 2 + 3);
-        a.position.set(ax, this.terrain.height(ax, az) + LIFT, az);
-        a.visible = true;
+      if (it.now.length >= 2) this.line(li++).set(this.terrain, it.now, it.color, 0.95);
+      if (it.later.length >= 2) this.line(li++).set(this.terrain, it.later, it.color, 0.3);
+      if (it.arrow && it.now.length >= 2) {
+        const n = it.now.length;
+        const a = it.now[n - 2], b = it.now[n - 1];
+        const m = this.arrow(ai++, it.color);
+        m.position.set(b.x, this.terrain.height(b.x, b.z) + LIFT, b.z);
+        m.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
+        m.scale.setScalar(1.6);
+        m.visible = true;
       }
-      if (it.kind === 'preview' && it.facing !== null) {
-        const g = this.ghost(gi++);
-        g.position.set(it.toX, this.terrain.height(it.toX, it.toZ) + 1, it.toZ);
-        g.rotation.y = -it.facing;
-        g.scale.set(it.depth, 2, it.frontage);
+      if (it.ghost) {
+        const g = this.ghost(gi++, it.color);
+        g.position.set(it.ghost.x, this.terrain.height(it.ghost.x, it.ghost.z) + 1, it.ghost.z);
+        g.rotation.y = -it.ghost.facing;
+        g.scale.set(it.ghost.depth, 2, it.ghost.frontage);
         g.visible = true;
       }
     }
@@ -134,19 +152,11 @@ export class OrderOverlay {
     for (let i = gi; i < this.ghosts.length; i++) this.ghosts[i].visible = false;
   }
 
-  setTrail(points: { x: number; z: number }[] | null) {
+  setTrail(points: XZ[] | null) {
     if (!points || points.length < 2) {
-      this.trail.visible = false;
+      this.trail.line.visible = false;
       return;
     }
-    const n = Math.min(points.length, 512);
-    const step = points.length / n;
-    for (let i = 0; i < n; i++) {
-      const p = points[Math.floor(i * step)];
-      this.trailPos.set([p.x, this.terrain.height(p.x, p.z) + LIFT + 0.1, p.z], i * 3);
-    }
-    this.trail.geometry.setDrawRange(0, n);
-    (this.trail.geometry.getAttribute('position') as BufferAttribute).needsUpdate = true;
-    this.trail.visible = true;
+    this.trail.set(this.terrain, points.length > 200 ? points.filter((_, i) => i % Math.ceil(points.length / 200) === 0) : points, '#ffffff', 0.9);
   }
 }

@@ -1,0 +1,31 @@
+{
+  "id": "line",
+  "name": "Line",
+  "walkMod": -0.1,
+  "runMod": -0.5,
+  "turnRate": 180,
+  "speedFloor": 0.1,
+  "aboutFace": true,
+  "fire": "front",
+  "arc": 60,
+  "emitters": 3,
+  "flank": [
+    79.2,
+    100.8
+  ],
+  "rearFireVulnerable": true,
+  "rangedAttackMod": 1.0,
+  "rangedTakenMod": -0.3,
+  "meleeTakenMod": 0,
+  "chargeResMod": 0,
+  "ownChargeMod": 0,
+  "flankChargeRes": -0.75,
+  "orgTakenMod": 0.15,
+  "formTicks": 5,
+  "breakTicks": 4,
+  "collision": {
+    "ally": 2,
+    "enemy": 2
+  },
+  "note": "Wide and shallow. Best firepower, hard to flank head-on, but slow to wheel and with long exposed sides."
+}

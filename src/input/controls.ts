@@ -1,19 +1,34 @@
-// Mouse and keyboard. Buttons never overlap: left = select, right = orders, middle = rotate,
-// wheel = zoom, WASD/arrows = pan, Q/E = rotate. Orders are allowed while paused.
+// Lines of Battle style controls (wiki "Orders", "Order Types", "Formations", "Control Groups").
+// Left = select. Right-click ground = move with the current order type; right-drag = shape a path
+// (one unit), rotate (drag starting on the unit) or lay a line (several units, stacked by role);
+// right-click an enemy = lock on; right-click a friend = follow. 1-5 order type, Y clear orders,
+// R T F G formations, Alt/Ctrl/Shift + 1-9 control groups. Camera: WASD/arrows/edges, wheel, Q/E,
+// middle-drag. Orders are planned while time is stopped; Space/Enter ends the turn.
 import type { Battle } from '../sim/battle';
-import { deg } from '../sim/geometry';
-import type { Stance } from '../sim/types';
+import type { Order, OrderType, XZ } from '../sim/types';
 import type { Unit } from '../sim/unit';
 import type { View } from '../render/view';
-import type { OrderVisual } from '../render/overlay';
-import { planClickMove, planLine, type LinePlan, type LineUnit, type XZ } from './formation';
+import { ORDER_COLORS, type OrderVisual } from '../render/overlay';
+import { planClickMove, planLine, roleRow, simplifyPath, type LineUnit, type Placement } from './formation';
 
 export interface ControlHandlers {
   onSelection(ids: number[]): void;
-  togglePause(): void;
+  onGroups(): void;
+  onOrderType(t: OrderType): void;
+  endTurn(): void;
+  replay(): void;
   changeSpeed(delta: number): void;
   toggleHelp(): void;
 }
+
+export const ORDER_KEYS: [OrderType, string, string][] = [
+  ['fireAdvance', '1', 'Fire & Advance'],
+  ['run', '2', 'Run'],
+  ['shoot', '3', 'Shoot'],
+  ['walk', '4', 'Walk'],
+  ['fallback', '5', 'Fallback'],
+];
+export const FORMATION_KEYS = ['KeyR', 'KeyT', 'KeyF', 'KeyG'];
 
 interface Drag {
   button: number;
@@ -23,18 +38,24 @@ interface Drag {
   lastY: number;
   moved: boolean;
   points: XZ[];
+  mode: 'rotate' | 'path' | 'line' | null;
+  unit: Unit | null;
 }
 
 const DRAG_PX = 6;
-const MIN_LINE = 4;
+const MIN_LINE = 8;
 
 export class Controls {
   selection = new Set<number>();
-  readonly groups: number[][] = Array.from({ length: 10 }, () => []);
+  /** Control groups 1-9 (index 0 unused). */
+  groups: number[][] = Array.from({ length: 10 }, () => []);
+  orderType: OrderType = 'fireAdvance';
+  /** Retyping an order applies to the selection (wiki setting, on by default). */
+  retypeSelection = true;
   hoverId: number | null = null;
   private keys = new Set<string>();
   private drag: Drag | null = null;
-  private preview: LinePlan[] | null = null;
+  private preview: { placements?: Placement[]; rotate?: { id: number; facing: number }; path?: { id: number; pts: XZ[] } } | null = null;
   private mouse = { x: -1, y: -1, inside: false };
   private readonly box: HTMLDivElement;
 
@@ -51,13 +72,7 @@ export class Controls {
     canvas.addEventListener('pointerdown', (e) => this.down(e));
     window.addEventListener('pointermove', (e) => this.move(e));
     window.addEventListener('pointerup', (e) => this.up(e));
-    // Native dblclick uses OS input timing, so it still works when frames are slow.
-    canvas.addEventListener('dblclick', (e) => {
-      const u = this.unitAt(e.clientX, e.clientY);
-      if (u && u.side === this.battle.player) {
-        this.select(this.battle.units.filter((o) => o.side === u.side && o.alive && o.type.id === u.type.id).map((o) => o.id), e.shiftKey);
-      }
-    });
+    canvas.addEventListener('dblclick', (e) => this.dblclick(e));
     canvas.addEventListener('pointerenter', () => (this.mouse.inside = true));
     canvas.addEventListener('pointerleave', () => (this.mouse.inside = false));
     canvas.addEventListener('wheel', (e) => {
@@ -67,32 +82,48 @@ export class Controls {
     window.addEventListener('keydown', (e) => this.keydown(e));
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
+    this.initialGroups();
   }
 
   setBattle(b: Battle) {
     this.battle = b;
     this.selection.clear();
-    this.groups.forEach((g) => (g.length = 0));
+    this.groups = Array.from({ length: 10 }, () => []);
+    this.initialGroups();
     this.cancelDrag();
     this.ui.onSelection([]);
+    this.ui.onGroups();
+  }
+
+  /** Initial groups by category (wiki: 1 infantry, 2 cavalry, 3 artillery -> elephants here, 4 skirmish/missile). */
+  private initialGroups() {
+    const mineAll = this.battle.units.filter((u) => u.side === this.battle.player);
+    this.groups[1] = mineAll.filter((u) => u.type.category === 'infantry').map((u) => u.id);
+    this.groups[2] = mineAll.filter((u) => u.type.category === 'cavalry').map((u) => u.id);
+    this.groups[3] = mineAll.filter((u) => u.type.category === 'elephant').map((u) => u.id);
+    this.groups[4] = mineAll.filter((u) => u.type.category === 'missile' || u.type.category === 'skirmisher').map((u) => u.id);
   }
 
   // ------------------------------------------------------------ helpers
 
-  private mine(): Unit[] {
-    return [...this.selection].map((id) => this.battle.unit(id)).filter((u) => u.side === this.battle.player && u.controllable);
+  private get planning(): boolean {
+    return this.battle.phase === 'planning' || this.battle.phase === 'deployment';
+  }
+
+  /** Selected units that can take orders now. */
+  commandable(): Unit[] {
+    return [...this.selection].map((id) => this.battle.unit(id)).filter((u) => u.side === this.battle.player && this.battle.canCommand(u.id));
   }
 
   private lineUnit(u: Unit): LineUnit {
-    return {
-      id: u.id, x: u.x, z: u.z, facing: u.facing, frontage: u.frontage, spacing: u.type.spacing[0],
-      filesRange: u.filesRange(), speed: u.type.speed, turnRate: deg(u.type.turnRate),
-    };
+    const shape = this.battle.plannedFormation.get(u.id) ?? u.shapeFormation;
+    const [frontage, depth] = u.type.formations[shape] ?? u.footprint;
+    return { id: u.id, x: u.x, z: u.z, facing: u.facing, frontage: frontage * Math.sqrt(u.strength), depth: depth * Math.sqrt(u.strength), row: roleRow(u.type.category, shape) };
   }
 
-  /** Unit under the cursor: footprint test on the ground, or nearest marker when zoomed out. */
+  /** Unit under the cursor (any side). Enemies must be visible. */
   unitAt(clientX: number, clientY: number): Unit | null {
-    const live = this.battle.units.filter((u) => u.alive);
+    const live = this.battle.units.filter((u) => u.alive && this.battle.seen(this.battle.player, u) > 0);
     let best: Unit | null = null;
     let bd = Infinity;
     if (!this.view.units.markerMode) {
@@ -106,8 +137,7 @@ export class Controls {
         if (best) return best;
       }
     }
-    const radius = this.view.units.markerMode ? 28 : 16;
-    bd = radius;
+    bd = this.view.units.markerMode ? 28 : 16;
     for (const u of live) {
       const p = this.view.project(u.x, this.battle.terrain.height(u.x, u.z) + 2, u.z);
       const d = Math.hypot(p.x - clientX, p.y - clientY);
@@ -116,10 +146,9 @@ export class Controls {
     return best;
   }
 
-  private select(ids: number[], add: boolean) {
+  select(ids: number[], add = false) {
     if (!add) this.selection.clear();
     for (const id of ids) this.selection.add(id);
-    // Enemy units can be inspected, but only alone.
     const enemy = [...this.selection].filter((id) => this.battle.unit(id).side !== this.battle.player);
     if (enemy.length && this.selection.size > 1) enemy.forEach((id) => this.selection.delete(id));
     this.ui.onSelection([...this.selection]);
@@ -137,11 +166,19 @@ export class Controls {
   private down(e: PointerEvent) {
     if (this.drag) return;
     this.canvas.setPointerCapture(e.pointerId);
-    this.drag = { button: e.button, startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY, moved: false, points: [] };
+    const d: Drag = { button: e.button, startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY, moved: false, points: [], mode: null, unit: null };
     if (e.button === 2) {
       const g = this.view.pickGround(e.clientX, e.clientY);
-      if (g) this.drag.points.push(g);
+      if (g) d.points.push(g);
+      const units = this.commandable();
+      const under = this.unitAt(e.clientX, e.clientY);
+      // Hold the secondary button on a single selected unit and drag to set its facing (Rotate).
+      if (units.length === 1 && under && under.id === units[0].id) d.mode = 'rotate';
+      else if (units.length === 1) d.mode = 'path';
+      else if (units.length > 1) d.mode = 'line';
+      d.unit = units[0] ?? null;
     }
+    this.drag = d;
     if (e.button === 1) e.preventDefault();
   }
 
@@ -162,25 +199,37 @@ export class Controls {
     } else if (d.button === 0 && d.moved) {
       const x = Math.min(d.startX, e.clientX), y = Math.min(d.startY, e.clientY);
       Object.assign(this.box.style, { display: 'block', left: `${x}px`, top: `${y}px`, width: `${Math.abs(e.clientX - d.startX)}px`, height: `${Math.abs(e.clientY - d.startY)}px` });
-    } else if (d.button === 2) {
+    } else if (d.button === 2 && d.mode && this.planning) {
       const g = this.view.pickGround(e.clientX, e.clientY);
       const last = d.points[d.points.length - 1];
       if (g && (!last || Math.hypot(g.x - last.x, g.z - last.z) > 1.5)) d.points.push(g);
-      const units = this.mine();
-      if (units.length && d.points.length >= 2 && this.trailLength(d.points) >= MIN_LINE) {
-        const { fx, fz } = this.view.rig.groundAxes();
-        this.preview = planLine(d.points, units.map((u) => this.lineUnit(u)), { x: fx, z: fz });
-        this.view.overlay.setTrail(d.points);
-      }
+      this.updatePreview(d);
     }
     d.lastX = e.clientX;
     d.lastY = e.clientY;
   }
 
-  private trailLength(p: XZ[]): number {
+  private dragLength(p: XZ[]): number {
     let L = 0;
     for (let i = 1; i < p.length; i++) L += Math.hypot(p[i].x - p[i - 1].x, p[i].z - p[i - 1].z);
     return L;
+  }
+
+  private updatePreview(d: Drag) {
+    if (d.points.length < 2 || this.dragLength(d.points) < MIN_LINE || !d.unit) {
+      this.preview = null;
+      return;
+    }
+    const last = d.points[d.points.length - 1];
+    if (d.mode === 'rotate') {
+      this.preview = { rotate: { id: d.unit.id, facing: Math.atan2(last.z - d.unit.z, last.x - d.unit.x) } };
+    } else if (d.mode === 'path') {
+      this.preview = { path: { id: d.unit.id, pts: simplifyPath(d.points, 12) } };
+    } else {
+      const { fx, fz } = this.view.rig.groundAxes();
+      this.preview = { placements: planLine(d.points, this.commandable().map((u) => this.lineUnit(u)), { x: fx, z: fz }) };
+    }
+    this.view.overlay.setTrail(d.mode === 'line' ? d.points : null);
   }
 
   private up(e: PointerEvent) {
@@ -189,9 +238,9 @@ export class Controls {
     if (d.button === 0) {
       if (d.moved) this.boxSelect(d, e.shiftKey);
       else this.click(e);
-    } else if (d.button === 2) {
-      if (this.preview && this.preview.length) this.commit(this.preview, e.altKey);
-      else if (!d.moved) this.rightClick(e);
+    } else if (d.button === 2 && this.planning) {
+      if (this.preview) this.commitPreview();
+      else if (!d.moved || this.dragLength(d.points) < MIN_LINE) this.rightClick(e);
     }
     this.cancelDrag();
   }
@@ -199,15 +248,27 @@ export class Controls {
   private click(e: PointerEvent) {
     const u = this.unitAt(e.clientX, e.clientY);
     if (!u) {
-      if (!e.shiftKey) this.select([], false);
+      if (!e.shiftKey) this.select([]);
       return;
     }
     if (e.shiftKey && this.selection.has(u.id)) {
       this.selection.delete(u.id);
       this.ui.onSelection([...this.selection]);
-    } else {
-      this.select([u.id], e.shiftKey && u.side === this.battle.player);
-    }
+    } else this.select([u.id], e.shiftKey && u.side === this.battle.player);
+  }
+
+  /** Double-click: all on-screen allied units with the same type and formation (wiki). */
+  private dblclick(e: MouseEvent) {
+    const u = this.unitAt(e.clientX, e.clientY);
+    if (!u || u.side !== this.battle.player) return;
+    const ids = this.battle.units
+      .filter((o) => o.side === u.side && o.alive && o.type.id === u.type.id && o.formation === u.formation)
+      .filter((o) => {
+        const p = this.view.project(o.x, this.battle.terrain.height(o.x, o.z), o.z);
+        return p.visible && p.x >= 0 && p.y >= 0 && p.x <= window.innerWidth && p.y <= window.innerHeight;
+      })
+      .map((o) => o.id);
+    this.select(ids, e.shiftKey);
   }
 
   private boxSelect(d: Drag, add: boolean) {
@@ -223,41 +284,108 @@ export class Controls {
     this.select(ids, add);
   }
 
-  private rightClick(e: PointerEvent) {
-    const units = this.mine();
-    if (!units.length) return;
-    const target = this.unitAt(e.clientX, e.clientY);
-    if (target && target.side !== this.battle.player) {
-      for (const u of units) this.battle.orderAttack(u.id, target.id, e.altKey || u.stance === 'charge');
+  // ------------------------------------------------------------ orders
+
+  /** The order type to give a unit: Fire and Advance falls back to Walk for melee-only units (wiki). */
+  private typeFor(u: Unit, t: OrderType = this.orderType): OrderType {
+    if ((t === 'shoot' || t === 'fireAdvance') && !u.type.ranged) return 'walk';
+    return t;
+  }
+
+  private place(id: number, x: number, z: number, facing: number, path?: XZ[]) {
+    const b = this.battle;
+    if (b.phase === 'deployment') {
+      b.deploy(id, x, z, facing);
       return;
+    }
+    const u = b.unit(id);
+    const type = this.typeFor(u);
+    // Shoot needs a target; a ground order with Shoot selected walks instead.
+    b.setOrder(id, { type: type === 'shoot' ? 'walk' : type, path: path ?? [{ x, z }], facing });
+  }
+
+  private commitPreview() {
+    const p = this.preview!;
+    if (p.rotate) {
+      if (this.battle.phase === 'deployment') {
+        const u = this.battle.unit(p.rotate.id);
+        this.battle.deploy(u.id, u.x, u.z, p.rotate.facing);
+      } else this.battle.setOrder(p.rotate.id, { type: 'rotate', facing: p.rotate.facing });
+    } else if (p.path) {
+      const pts = p.path.pts.slice(1);
+      const n = p.path.pts.length;
+      const facing = Math.atan2(p.path.pts[n - 1].z - p.path.pts[n - 2].z, p.path.pts[n - 1].x - p.path.pts[n - 2].x);
+      const end = pts[pts.length - 1];
+      this.place(p.path.id, end.x, end.z, this.typeFor(this.battle.unit(p.path.id)) === 'fallback' ? facing + Math.PI : facing, pts);
+    } else if (p.placements) {
+      for (const pl of p.placements) this.place(pl.id, pl.x, pl.z, pl.facing);
+    }
+  }
+
+  private rightClick(e: PointerEvent) {
+    const units = this.commandable();
+    if (!units.length) return;
+    const b = this.battle;
+    const target = this.unitAt(e.clientX, e.clientY);
+    if (target && b.phase === 'planning') {
+      if (target.side !== b.player) {
+        // Lock on: Shoot fires at it, Fire & Advance closes while firing, Walk/Run chase, Fallback backs away.
+        for (const u of units) {
+          const type = this.typeFor(u);
+          if (type === 'shoot' && !u.type.ranged) continue;
+          b.setOrder(u.id, { type, target: target.id });
+        }
+        return;
+      }
+      if (!this.selection.has(target.id) && this.orderType !== 'shoot' && this.orderType !== 'fallback') {
+        // Follow a friend; several units form a marching column, each following the one before.
+        const chain = [...units].sort((a, c) => Math.hypot(a.x - target.x, a.z - target.z) - Math.hypot(c.x - target.x, c.z - target.z));
+        let lead = target;
+        for (const u of chain) {
+          b.setOrder(u.id, { type: this.typeFor(u) === 'run' ? 'run' : 'walk', follow: lead.id });
+          lead = u;
+        }
+        return;
+      }
     }
     const g = this.view.pickGround(e.clientX, e.clientY);
     if (!g) return;
-    this.commit(planClickMove(units.map((u) => this.lineUnit(u)), g), e.altKey);
-  }
-
-  private commit(plans: LinePlan[], run: boolean) {
-    for (const p of plans) {
-      const u = this.battle.unit(p.id);
-      if (u.stance === 'advance' || u.stance === 'charge') this.battle.setStance(u.id, 'hold');
-      this.battle.orderMove(p.id, p.slot, p.speedScale, run);
+    for (const pl of planClickMove(units.map((u) => this.lineUnit(u)), g)) {
+      const u = b.unit(pl.id);
+      this.place(pl.id, pl.x, pl.z, this.typeFor(u) === 'fallback' ? pl.facing + Math.PI : pl.facing);
     }
   }
 
-  // ------------------------------------------------------------ keyboard
-
-  stance(s: Stance) {
-    for (const u of this.mine()) this.battle.setStance(u.id, s);
+  setOrderType(t: OrderType) {
+    this.orderType = t;
+    // Re-stamp the selection's drawn path orders with the new type, keeping path and facing (wiki).
+    if (this.retypeSelection && this.battle.phase === 'planning') {
+      for (const u of this.commandable()) {
+        const o = u.order;
+        if (!o?.path) continue;
+        if ((t === 'shoot' || t === 'fireAdvance') && !u.type.ranged && t === 'shoot') continue;
+        const type = this.typeFor(u, t);
+        if (type === 'shoot') continue;
+        const flip = (o.type === 'fallback') !== (type === 'fallback');
+        this.battle.setOrder(u.id, { ...o, type, continued: false, facing: o.facing !== undefined && flip ? o.facing + Math.PI : o.facing });
+      }
+    }
+    this.ui.onOrderType(t);
   }
 
-  toggleFire() {
-    const units = this.mine().filter((u) => u.type.range);
-    const on = !units.every((u) => u.fireAtWill);
-    for (const u of units) this.battle.setFireAtWill(u.id, on);
+  clearOrders() {
+    for (const u of this.commandable()) this.battle.setOrder(u.id, null);
   }
 
-  halt() {
-    for (const u of this.mine()) this.battle.halt(u.id);
+  formationSlot(i: number) {
+    for (const u of this.commandable()) {
+      const f = u.formationSlots()[i];
+      if (f) this.battle.setFormation(u.id, f);
+    }
+  }
+
+  setAutofire(r: Unit['autofire']) {
+    for (const u of this.commandable()) this.battle.setAutofire(u.id, r);
   }
 
   followSelected() {
@@ -265,48 +393,77 @@ export class Controls {
     this.view.rig.follow = this.view.rig.follow === null && first !== undefined ? first : null;
   }
 
+  // ------------------------------------------------------------ groups
+
+  recallGroup(n: number, add = false) {
+    const ids = this.groups[n].filter((id) => this.battle.unit(id).alive); // destroyed units drop out on recall
+    this.groups[n] = ids;
+    this.select(ids, add);
+    this.ui.onGroups();
+  }
+
+  assignGroup(n: number, mode: 'set' | 'add' | 'exclusive') {
+    const ids = [...this.selection].filter((id) => this.battle.unit(id).side === this.battle.player);
+    if (mode === 'add') this.groups[n] = [...new Set([...this.groups[n], ...ids])];
+    else this.groups[n] = ids;
+    if (mode === 'exclusive') for (let k = 1; k <= 9; k++) if (k !== n) this.groups[k] = this.groups[k].filter((id) => !ids.includes(id));
+    this.ui.onGroups();
+  }
+
+  saveToFreeGroup() {
+    for (let k = 1; k <= 9; k++) {
+      if (this.groups[k].length === 0) {
+        this.assignGroup(k, 'set');
+        return;
+      }
+    }
+  }
+
+  // ------------------------------------------------------------ keyboard
+
   private keydown(e: KeyboardEvent) {
     if (e.target instanceof HTMLInputElement) return;
     const code = e.code;
     const digit = /^Digit([1-9])$/.exec(code);
     if (digit) {
       const n = Number(digit[1]);
-      if (e.altKey || e.ctrlKey) {
-        e.preventDefault();
-        this.groups[n] = this.mine().map((u) => u.id);
-      } else {
-        this.select(this.groups[n].filter((id) => this.battle.unit(id).alive), e.shiftKey);
-      }
+      if (e.ctrlKey && e.shiftKey) this.assignGroup(n, 'exclusive');
+      else if (e.ctrlKey) this.assignGroup(n, 'set');
+      else if (e.altKey) this.recallGroup(n, e.shiftKey);
+      else if (e.shiftKey) this.assignGroup(n, 'add');
+      else if (n <= 5) this.setOrderType(ORDER_KEYS[n - 1][0]);
+      e.preventDefault();
+      return;
+    }
+    const slot = FORMATION_KEYS.indexOf(code);
+    if (slot >= 0 && !e.ctrlKey && !e.altKey) {
+      this.formationSlot(slot);
       return;
     }
     switch (code) {
-      case 'Space': e.preventDefault(); this.ui.togglePause(); return;
+      case 'Space':
+      case 'Enter':
+      case 'NumpadEnter':
+        e.preventDefault();
+        this.ui.endTurn();
+        return;
       case 'Escape':
         if (this.drag) this.cancelDrag();
-        else this.select([], false);
+        else this.select([]);
         return;
-      case 'KeyH': this.stance('hold'); return;
-      case 'KeyG': this.stance('advance'); return;
-      case 'KeyC': this.stance('charge'); return;
-      case 'KeyX': this.stance('withdraw'); return;
-      case 'KeyF': this.toggleFire(); return;
-      case 'Backspace': case 'Delete': e.preventDefault(); this.halt(); return;
-      case 'KeyT': this.view.rig.toggleTopDown(); return;
-      case 'KeyY': this.followSelected(); return;
+      case 'KeyY': this.clearOrders(); return;
+      case 'KeyP': this.ui.replay(); return;
+      case 'KeyV': this.view.rig.toggleTopDown(); return;
+      case 'KeyZ': this.followSelected(); return;
       case 'Equal': case 'NumpadAdd': this.ui.changeSpeed(1); return;
       case 'Minus': case 'NumpadSubtract': this.ui.changeSpeed(-1); return;
       case 'F1': case 'Slash': e.preventDefault(); this.ui.toggleHelp(); return;
-      case 'KeyA':
-        if (e.ctrlKey) {
-          e.preventDefault();
-          this.select(this.battle.units.filter((u) => u.side === this.battle.player && u.alive).map((u) => u.id), false);
-          return;
-        }
     }
     this.keys.add(code);
   }
 
-  /** Per-frame: camera keys, edge scroll, and the order-line overlay. */
+  // ------------------------------------------------------------ per frame
+
   update(dt: number) {
     const k = (c: string) => this.keys.has(c);
     const speed = 420 * dt;
@@ -325,35 +482,69 @@ export class Controls {
     if (f || r) this.view.rig.pan(f, r);
     if (k('KeyQ')) this.view.rig.rotate(-1.6 * dt, 0);
     if (k('KeyE')) this.view.rig.rotate(1.6 * dt, 0);
-
     this.view.units.setSelected(this.selection);
     this.view.units.setHover(this.hoverId);
-    this.view.overlay.show(this.orderVisuals());
+    this.view.overlay.show(this.planning || this.battle.phase === 'ended' ? this.orderVisuals() : []);
   }
 
-  private orderVisuals(): OrderVisual[] {
+  /** Order arrows for the selection (or preview): solid for this turn, faded beyond, ghost at turn's end. */
+  orderVisuals(): OrderVisual[] {
+    const b = this.battle;
     const out: OrderVisual[] = [];
+    const ghostOf = (u: Unit, x: number, z: number, facing: number) => ({ x, z, facing, frontage: u.frontage, depth: u.depth });
     if (this.preview) {
-      for (const p of this.preview) {
-        const u = this.battle.unit(p.id);
-        out.push({
-          fromX: u.x, fromZ: u.z, toX: p.slot.x, toZ: p.slot.z, facing: p.slot.facing,
-          frontage: p.slot.files * u.type.spacing[0], depth: Math.ceil(u.men / p.slot.files) * u.type.spacing[1], kind: 'preview',
-        });
+      const color = b.phase === 'deployment' ? ORDER_COLORS.deploy : ORDER_COLORS[this.orderType];
+      if (this.preview.rotate) {
+        const u = b.unit(this.preview.rotate.id);
+        out.push({ now: [], later: [], color: ORDER_COLORS.rotate, ghost: ghostOf(u, u.x, u.z, this.preview.rotate.facing), arrow: false });
+      }
+      if (this.preview.path) {
+        const u = b.unit(this.preview.path.id);
+        out.push(this.projectPath(u, { type: this.typeFor(u), path: this.preview.path.pts.slice(1) }, color));
+      }
+      for (const pl of this.preview.placements ?? []) {
+        const u = b.unit(pl.id);
+        out.push({ now: [{ x: u.x, z: u.z }, { x: pl.x, z: pl.z }], later: [], color, ghost: ghostOf(u, pl.x, pl.z, pl.facing), arrow: false });
       }
       return out;
     }
     for (const id of this.selection) {
-      const u = this.battle.unit(id);
-      if (!u.alive || u.side !== this.battle.player) continue;
+      const u = b.unit(id);
+      if (!u.alive || u.side !== b.player || !u.order) continue;
       const o = u.order;
-      if (o?.kind === 'move') {
-        out.push({ fromX: u.x, fromZ: u.z, toX: o.x, toZ: o.z, facing: o.facing, frontage: o.files * u.type.spacing[0], depth: u.depth, kind: 'move' });
-      } else if (o?.kind === 'attack') {
-        const t = this.battle.unit(o.target);
-        out.push({ fromX: u.x, fromZ: u.z, toX: t.x, toZ: t.z, facing: null, frontage: 0, depth: 0, kind: 'attack' });
-      }
+      const color = o.follow !== undefined ? ORDER_COLORS.follow : ORDER_COLORS[o.type];
+      if (o.type === 'rotate') out.push({ now: [], later: [], color, ghost: ghostOf(u, u.x, u.z, o.facing ?? u.facing), arrow: false });
+      else if (o.target !== undefined || o.follow !== undefined) {
+        const t = b.unit((o.target ?? o.follow)!);
+        out.push({ now: [{ x: u.x, z: u.z }, { x: t.x, z: t.z }], later: [], color, ghost: null, arrow: false });
+      } else if (o.path) out.push(this.projectPath(u, o, color));
     }
     return out;
+  }
+
+  private projectPath(u: Unit, o: Order, color: string): OrderVisual {
+    const pts = [{ x: u.x, z: u.z }, ...(o.path ?? [])];
+    let budget = this.battle.reach(u, o.type);
+    const now: XZ[] = [pts[0]];
+    let i = 1;
+    let heading = u.facing;
+    for (; i < pts.length; i++) {
+      const a = now[now.length - 1], bb = pts[i];
+      const seg = Math.hypot(bb.x - a.x, bb.z - a.z);
+      heading = Math.atan2(bb.z - a.z, bb.x - a.x);
+      if (seg <= budget) {
+        now.push(bb);
+        budget -= seg;
+      } else {
+        now.push({ x: a.x + ((bb.x - a.x) * budget) / seg, z: a.z + ((bb.z - a.z) * budget) / seg });
+        break;
+      }
+    }
+    const done = i >= pts.length;
+    const later = done ? [] : [now[now.length - 1], ...pts.slice(i)];
+    const end = now[now.length - 1];
+    const back = o.type === 'fallback';
+    const facing = done && o.facing !== undefined ? o.facing : back ? heading + Math.PI : heading;
+    return { now, later, color, ghost: { x: end.x, z: end.z, facing, frontage: u.frontage, depth: u.depth }, arrow: !back };
   }
 }

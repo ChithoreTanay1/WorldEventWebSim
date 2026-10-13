@@ -1,6 +1,9 @@
 // Scene composition: renderer, lights, terrain, units, order overlay and effects.
 import { Color, DirectionalLight, Fog, HemisphereLight, Scene, Vector3, WebGLRenderer } from 'three';
-import type { Battle } from '../sim/battle';
+import type { Battle, UnitSnap } from '../sim/battle';
+import type { Volley } from '../sim/types';
+import type { Unit } from '../sim/unit';
+import { Markings } from './markings';
 import { CameraRig } from './camera';
 import { Effects } from './effects';
 import { OrderOverlay } from './overlay';
@@ -16,6 +19,7 @@ export class View {
   units: UnitLayer;
   readonly overlay: OrderOverlay;
   effects: Effects;
+  markings: Markings;
   private readonly v = new Vector3();
 
   constructor(readonly canvas: HTMLCanvasElement, private battle: Battle) {
@@ -35,6 +39,8 @@ export class View {
     this.scene.add(this.overlay.root);
     this.effects = new Effects(battle.terrain);
     this.scene.add(this.effects.mesh);
+    this.markings = new Markings(battle);
+    this.scene.add(this.markings.root);
     this.resize();
   }
 
@@ -47,6 +53,9 @@ export class View {
     this.scene.remove(this.effects.mesh);
     this.effects = new Effects(battle.terrain);
     this.scene.add(this.effects.mesh);
+    this.scene.remove(this.markings.root);
+    this.markings = new Markings(battle);
+    this.scene.add(this.markings.root);
     this.overlay.show([]);
   }
 
@@ -58,14 +67,18 @@ export class View {
     this.rig.camera.updateProjectionMatrix();
   }
 
-  frame(alpha: number, dt: number, time: number) {
+  /** Render the interpolation between two frames. */
+  frame(a: UnitSnap[], b: UnitSnap[], alpha: number, dt: number, time: number, selected: Unit[]) {
     const f = this.rig.follow !== null ? this.battle.unit(this.rig.follow) : null;
     this.rig.update(dt, f && f.alive ? { x: f.x, z: f.z } : null);
-    for (const v of this.battle.volleys) this.effects.spawn(v);
-    this.battle.volleys.length = 0;
     this.effects.update(dt);
-    this.units.update(alpha, time, this.rig.smoothedDistance);
+    this.units.update(a, b, alpha, time, this.rig.smoothedDistance);
+    this.markings.update(selected, time);
     this.renderer.render(this.scene, this.rig.camera);
+  }
+
+  spawnVolleys(volleys: Volley[]) {
+    for (const v of volleys) this.effects.spawn(v);
   }
 
   /** Ground point under a client-space pixel, by marching the view ray over the heightfield. */

@@ -1,26 +1,62 @@
 {
   "id": "levy-spearmen",
   "name": "Levy Spearmen",
-  "class": "infantry",
-  "men": 160,
-  "hp": 1,
-  "attack": 3,
-  "charge": 2,
-  "armor": 2,
-  "speed": 2.6,
-  "runSpeed": 4.2,
-  "turnRate": 40,
-  "morale": 4,
-  "files": 32,
-  "minRanks": 2,
-  "maxRanks": 12,
-  "spacing": [
-    1.1,
-    1.3
-  ],
-  "shield": true,
-  "antiCavalry": 1.7,
+  "category": "infantry",
+  "figures": 160,
+  "canCapture": true,
+  "captureRate": 2,
+  "hp": 900,
+  "org": 520,
+  "stamina": 1500,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.25,
+    "rally": 0.5,
+    "shatter": -0.25
+  },
+  "walk": 70,
+  "run": 105,
+  "formations": {
+    "column": [
+      34,
+      26
+    ],
+    "line": [
+      60,
+      10
+    ],
+    "ring": [
+      30,
+      30
+    ]
+  },
+  "defaultFormation": "line",
+  "melee": {
+    "attack": 36,
+    "defense": 50,
+    "weapon": {
+      "name": "Spear",
+      "orgRatio": 330,
+      "bimTicks": 4,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher"
+      ]
+    },
+    "chargeBonus": 35,
+    "chargeResistance": 0.5,
+    "runChargeResMod": -1.1,
+    "chargePenetration": 0.5,
+    "flankPenBonus": 0.4,
+    "flankOrgMod": 1.0,
+    "antiCavalry": 0.35
+  },
+  "orgRadius": 90,
+  "orgRadiusBonus": 7,
+  "panicDistance": 40,
+  "visibility": 1,
   "height": 1.7,
   "icon": "spear",
-  "note": "Cheap line filler. Spear wall blunts cavalry charges from the front; breaks quickly."
+  "note": "Cheap line filler with long spears that brace well against horse (+0.35 charge resistance against cavalry and elephants). Breaks early."
 }

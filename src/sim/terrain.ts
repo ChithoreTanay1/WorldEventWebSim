@@ -72,7 +72,27 @@ export class Terrain {
     return this.height(x, z) < WATER_LEVEL;
   }
 
-  /** Movement multiplier for terrain at a point, by unit class. */
+  /** 0 on dry ground, 0.5 at a ford, 1 in the river: scales the shallow-water modifiers. */
+  waterFactor(x: number, z: number): number {
+    if (!this.inWater(x, z)) return 0;
+    return this.fordFactor(x, z) > 0 ? 0.5 : 1;
+  }
+
+  /**
+   * Line of sight between two points, eyes `eye` metres above ground. Ground rising above the sight
+   * line blocks it outright (wiki: ridges create dead ground).
+   */
+  lineOfSight(ax: number, az: number, bx: number, bz: number, eye = 3): boolean {
+    const ha = this.height(ax, az) + eye, hb = this.height(bx, bz) + eye;
+    const n = Math.max(4, Math.ceil(Math.hypot(bx - ax, bz - az) / 25));
+    for (let i = 1; i < n; i++) {
+      const t = i / n;
+      if (this.height(ax + (bx - ax) * t, az + (bz - az) * t) > ha + (hb - ha) * t) return false;
+    }
+    return true;
+  }
+
+  /** Movement multiplier for terrain at a point, by unit category. */
   speedFactor(x: number, z: number, cls: string): number {
     if (!this.inWater(x, z)) return 1;
     const ford = this.fordFactor(x, z) > 0;

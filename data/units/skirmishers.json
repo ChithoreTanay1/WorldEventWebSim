@@ -1,30 +1,84 @@
 {
   "id": "skirmishers",
   "name": "Javelin Skirmishers",
-  "class": "missile",
-  "men": 80,
-  "hp": 1,
-  "attack": 2,
-  "charge": 1,
-  "armor": 1,
-  "speed": 3.2,
-  "runSpeed": 5.2,
-  "turnRate": 60,
-  "morale": 4,
-  "range": 45,
-  "ammo": 8,
-  "accuracy": 0.08,
-  "reload": 5,
-  "fireArc": 180,
-  "files": 20,
-  "minRanks": 2,
-  "maxRanks": 6,
-  "spacing": [
-    2.0,
-    2.0
-  ],
-  "loose": true,
+  "category": "skirmisher",
+  "figures": 80,
+  "canCapture": false,
+  "captureRate": 0,
+  "hp": 300,
+  "org": 650,
+  "stamina": 2400,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.25,
+    "rally": 0.5,
+    "shatter": -0.3
+  },
+  "walk": 80,
+  "run": 125,
+  "formations": {
+    "loose": [
+      50,
+      14
+    ]
+  },
+  "defaultFormation": "loose",
+  "melee": {
+    "attack": 24,
+    "defense": 14,
+    "weapon": {
+      "name": "Knife",
+      "orgRatio": 290,
+      "bimTicks": 4,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher"
+      ]
+    },
+    "chargeBonus": 0,
+    "chargeResistance": -0.4,
+    "runChargeResMod": 0,
+    "chargePenetration": 0,
+    "flankPenBonus": 0,
+    "flankOrgMod": 1.0
+  },
+  "ranged": {
+    "attack": 12,
+    "weapon": {
+      "name": "Javelins",
+      "orgRatio": 420,
+      "enfilade": true,
+      "effective": 35,
+      "close": 20,
+      "bands": [
+        [
+          0,
+          20,
+          3.0,
+          2.0
+        ],
+        [
+          20,
+          40,
+          2.0,
+          0.4
+        ],
+        [
+          40,
+          55,
+          0.4,
+          -0.5
+        ]
+      ]
+    },
+    "ammo": 40
+  },
+  "orgRadius": 100,
+  "orgRadiusBonus": 4,
+  "panicDistance": 35,
+  "visibility": 0.6,
   "height": 1.7,
   "icon": "javelin",
-  "note": "A thin screen of javelin men. Retreats when threatened."
+  "note": "A thin screen of javelin men in loose order. Hard to spot, shoots all round, and deals no charge backlash."
 }

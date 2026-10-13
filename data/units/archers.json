@@ -1,30 +1,94 @@
 {
   "id": "archers",
   "name": "Archers",
-  "class": "missile",
-  "men": 120,
-  "hp": 1,
-  "attack": 2,
-  "charge": 1,
-  "armor": 1,
-  "speed": 2.8,
-  "runSpeed": 4.6,
-  "turnRate": 45,
-  "morale": 5,
-  "range": 160,
-  "ammo": 28,
-  "accuracy": 0.055,
-  "reload": 4,
-  "fireArc": 120,
-  "files": 30,
-  "minRanks": 2,
-  "maxRanks": 10,
-  "spacing": [
-    1.3,
-    1.5
-  ],
-  "loose": true,
+  "category": "missile",
+  "figures": 120,
+  "canCapture": true,
+  "captureRate": 2,
+  "hp": 600,
+  "org": 560,
+  "stamina": 1800,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.25,
+    "rally": 0.5,
+    "shatter": -0.25
+  },
+  "walk": 70,
+  "run": 105,
+  "formations": {
+    "column": [
+      30,
+      24
+    ],
+    "line": [
+      58,
+      9
+    ]
+  },
+  "defaultFormation": "line",
+  "melee": {
+    "attack": 20,
+    "defense": 18,
+    "weapon": {
+      "name": "Knife",
+      "orgRatio": 290,
+      "bimTicks": 4,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher"
+      ]
+    },
+    "chargeBonus": 10,
+    "chargeResistance": -0.2,
+    "runChargeResMod": -1.1,
+    "chargePenetration": 0.2,
+    "flankPenBonus": 0.2,
+    "flankOrgMod": 1.0
+  },
+  "ranged": {
+    "attack": 16,
+    "weapon": {
+      "name": "Long bow",
+      "orgRatio": 380,
+      "enfilade": true,
+      "effective": 110,
+      "close": 50,
+      "bands": [
+        [
+          0,
+          40,
+          2.5,
+          1.8
+        ],
+        [
+          40,
+          90,
+          1.8,
+          0.6
+        ],
+        [
+          90,
+          130,
+          0.6,
+          -0.3
+        ],
+        [
+          130,
+          170,
+          -0.3,
+          -0.7
+        ]
+      ]
+    },
+    "ammo": 72
+  },
+  "orgRadius": 90,
+  "orgRadiusBonus": 6,
+  "panicDistance": 45,
+  "visibility": 1,
   "height": 1.7,
   "icon": "bow",
-  "note": "Long bamboo bows. Deadly against light horse, useless in melee."
+  "note": "Long bamboo bows. Deadly at close range, weak in melee."
 }

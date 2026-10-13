@@ -1,0 +1,29 @@
+{
+  "id": "ring",
+  "name": "Spear Ring",
+  "walkMod": -1.0,
+  "runMod": -1.0,
+  "turnRate": 360,
+  "speedFloor": 0.05,
+  "aboutFace": false,
+  "fire": "four",
+  "arc": 90,
+  "emitters": 4,
+  "flank": null,
+  "rearFireVulnerable": false,
+  "rangedAttackMod": 0.5,
+  "rangedTakenMod": 0.4,
+  "meleeTakenMod": 0.05,
+  "chargeResMod": 0.3,
+  "ownChargeMod": -0.75,
+  "flankChargeRes": 0,
+  "orgTakenMod": 0,
+  "formTicks": 0,
+  "breakTicks": 3,
+  "rootedWhileForming": true,
+  "collision": {
+    "ally": 2,
+    "enemy": 2
+  },
+  "note": "A hedge of spears facing every way, our stand-in for the square. It cannot be flanked and braces against charges from any side, but barely moves and makes a fat target for arrows."
+}

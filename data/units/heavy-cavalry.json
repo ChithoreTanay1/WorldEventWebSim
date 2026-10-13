@@ -1,24 +1,55 @@
 {
   "id": "heavy-cavalry",
   "name": "Heavy Lancers",
-  "class": "cavalry",
-  "men": 100,
-  "hp": 1.6,
-  "attack": 7,
-  "charge": 14,
-  "armor": 6,
-  "speed": 4.5,
-  "runSpeed": 10,
-  "turnRate": 70,
-  "morale": 8,
-  "files": 25,
-  "minRanks": 2,
-  "maxRanks": 8,
-  "spacing": [
-    2.0,
-    3.0
-  ],
+  "category": "cavalry",
+  "figures": 100,
+  "canCapture": false,
+  "captureRate": 0,
+  "hp": 550,
+  "org": 820,
+  "stamina": 1350,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.25,
+    "rally": 0.5,
+    "shatter": -0.4
+  },
+  "walk": 95,
+  "run": 210,
+  "formations": {
+    "cavalry": [
+      50,
+      9
+    ]
+  },
+  "defaultFormation": "cavalry",
+  "melee": {
+    "attack": 54,
+    "defense": 30,
+    "weapon": {
+      "name": "Lance",
+      "orgRatio": 310,
+      "bimTicks": 6,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher",
+        "cavalry",
+        "elephant"
+      ]
+    },
+    "chargeBonus": 95,
+    "chargeResistance": 0.25,
+    "runChargeResMod": 0.6,
+    "chargePenetration": 0.55,
+    "flankPenBonus": 0.3,
+    "flankOrgMod": 0.75
+  },
+  "orgRadius": 110,
+  "orgRadiusBonus": 5,
+  "panicDistance": 40,
+  "visibility": 1,
   "height": 2.3,
   "icon": "cav-heavy",
-  "note": "Armoured lancers. Devastating charge into flank or rear; tire in long melees."
+  "note": "Armoured lancers. Devastating charge into a flank or rear; poor at grinding melee."
 }
