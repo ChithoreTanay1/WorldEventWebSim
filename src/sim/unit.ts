@@ -11,6 +11,8 @@ export class Unit implements Frame {
 
   hp: number;
   readonly maxHp: number;
+  /** HP when the current turn began (for the casualty report). */
+  hpAtTurnStart = 0;
   org: number;
   readonly baseMaxOrg: number;
   stamina: number;
@@ -79,7 +81,7 @@ export class Unit implements Frame {
     this.x = this.prevX = x;
     this.z = this.prevZ = z;
     this.facing = this.prevFacing = facing;
-    this.maxHp = this.hp = type.hp * strength;
+    this.maxHp = this.hp = this.hpAtTurnStart = type.hp * strength;
     this.baseMaxOrg = this.org = type.org;
     this.stamina = type.stamina;
     this.formation = type.defaultFormation;

@@ -1,7 +1,7 @@
 // Rule checks against the Lines of Battle wiki (v1.7) formulas and behaviours.
 import { describe, expect, it } from 'vitest';
 import type { Battle } from '../src/sim/battle';
-import { canCharge, flankOf, hpMod, meleeSwing, orgMod, rangeModifier } from '../src/sim/combat';
+import { CASUALTIES, canCharge, flankOf, hpMod, meleeSwing, orgMod, rangeModifier } from '../src/sim/combat';
 import { ATTACKS_PER_TURN, TICKS_PER_TURN } from '../src/sim/constants';
 import { flankPercent } from '../src/sim/geometry';
 import type { Scenario } from '../src/sim/types';
@@ -91,9 +91,11 @@ describe('melee and charges (wiki formulas)', () => {
     const [a, d] = b.units;
     const atk = a.type.melee.attack, def = d.type.melee.defense;
     const h = meleeSwing(b, a, d);
-    expect(h.hp).toBeCloseTo((atk * atk) / (atk + def) / ATTACKS_PER_TURN, 5);
-    // Org loss = final / maxHP x 10 x org ratio (adjusted only by support/formation, which are neutral here).
-    expect(h.org).toBeCloseTo((h.hp / d.maxHp) * 10 * a.type.melee.weapon.orgRatio * 1, 1);
+    const swing = (atk * atk) / (atk + def) / ATTACKS_PER_TURN;
+    // Men killed are the wiki's HP damage times our casualty multiplier...
+    expect(h.hp).toBeCloseTo(swing * CASUALTIES.melee, 5);
+    // ...while org loss stays exactly the wiki's: swing / maxHP x 10 x org ratio.
+    expect(h.org).toBeCloseTo((swing / d.maxHp) * 10 * a.type.melee.weapon.orgRatio, 1);
   });
 
   it('a flank attack on a line costs more organization, not more HP', () => {
@@ -238,5 +240,49 @@ describe('objectives, victory points and fog of war', () => {
     far.endTurn();
     far.resolveTurn();
     expect(far.seen('a', far.units[1])).toBeLessThanOrEqual(1);
+  });
+
+  it('a unit given a curved path actually follows the curve', () => {
+    const b = duel('heavy-cavalry', 'heavy-infantry', [60, 200], 0);
+    b.units[1].x = 580;
+    b.units[1].z = 30;
+    b.endTurn();
+    const curve = Array.from({ length: 30 }, (_, i) => ({ x: 60 + i * 6, z: 200 + Math.sin(i / 5) * 40 }));
+    b.setOrder(0, { type: 'walk', path: curve.slice(1) });
+    let worst = 0;
+    while (b.phase === 'resolving' || b.battleTurn() < 4) {
+      if (b.phase !== 'resolving') b.endTurn();
+      b.stepSub();
+      const u = b.units[0];
+      if (u.x > 220) break;
+      const d = Math.min(...curve.map((p) => Math.hypot(p.x - u.x, p.z - u.z)));
+      worst = Math.max(worst, d);
+    }
+    expect(b.units[0].x).toBeGreaterThan(150);
+    expect(worst).toBeLessThan(6);
+  });
+});
+
+describe('casualties', () => {
+  it('both sides lose men in an even melee, the attacker as well as the defender', () => {
+    const b = duel('heavy-infantry', 'heavy-infantry', [265, 200]);
+    b.endTurn();
+    b.setOrder(0, { type: 'walk', target: 1 });
+    b.resolveTurn();
+    const [a, d] = b.units;
+    expect(b.men(a)).toBeLessThan(b.men(a, a.maxHp));
+    expect(b.men(d)).toBeLessThan(b.men(d, d.maxHp));
+    expect(b.log.some((l) => /lose \d+ men/.test(l.text))).toBe(true);
+  });
+
+  it('charging braced spears head-on costs the horse men; a rear charge costs it almost nothing', () => {
+    const run = (pos: [number, number], facing: number, def: string) => {
+      const b = duel('heavy-cavalry', def, pos, facing);
+      b.endTurn();
+      b.setOrder(0, { type: 'run', target: 1 });
+      b.resolveTurn();
+      return b.men(b.units[0], b.units[0].maxHp) - b.men(b.units[0]);
+    };
+    expect(run([130, 200], 0, 'levy-spearmen')).toBeGreaterThan(run([470, 200], 180, 'archers'));
   });
 });

@@ -5,12 +5,12 @@
 import {
   BoxGeometry, BufferGeometry, CanvasTexture, Color, DoubleSide, EdgesGeometry, Group, InstancedMesh,
   LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, PlaneGeometry,
-  Shape, ShapeGeometry, SRGBColorSpace, type Material,
+  Shape, ShapeGeometry, SRGBColorSpace, Vector3, type Material,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Battle, UnitSnap } from '../sim/battle';
 import type { Unit } from '../sim/unit';
-import { markerCanvas, topIconCanvas } from './icons';
+import { barSymbolCanvas, topIconCanvas } from './icons';
 
 type BodyKind = 'foot' | 'horse' | 'elephant';
 const bodyKind = (u: Unit): BodyKind => (u.type.category === 'cavalry' ? 'horse' : u.type.category === 'elephant' ? 'elephant' : 'foot');
@@ -37,10 +37,16 @@ interface View {
   arrow: Mesh;
   banner: Group;
   icon: Mesh;
-  marker: Mesh;
-  markerMat: MeshBasicMaterial;
-  unknownMat: MeshBasicMaterial;
-  ring: Mesh;
+  /** Zoomed-out marker: a long bar along the unit's frontage, border, symbol and facing chevron. */
+  marker: Group;
+  markerBody: Mesh;
+  markerBodyMat: MeshBasicMaterial;
+  markerBorder: LineSegments;
+  markerBorderMat: LineBasicMaterial;
+  markerSymbol: Mesh;
+  symbolMat: MeshBasicMaterial;
+  unknownSymbolMat: MeshBasicMaterial;
+  markerChevron: Mesh;
   kind: BodyKind;
   base: number;
   cap: number;
@@ -110,31 +116,55 @@ export class UnitLayer {
     tri.closePath();
     const arrowGeo = new ShapeGeometry(tri);
     arrowGeo.rotateX(-Math.PI / 2);
-    const arrow = new Mesh(arrowGeo, new MeshBasicMaterial({ color: color.clone().offsetHSL(0, 0, 0.2), side: DoubleSide }));
+    const arrow = new Mesh(arrowGeo, new MeshBasicMaterial({ color: color.clone().offsetHSL(0, 0, 0.2), side: DoubleSide, transparent: true, opacity: 0.55 }));
     const banner = new Group();
-    const pole = new Mesh(new BoxGeometry(0.14, 6.5, 0.14), new MeshLambertMaterial({ color: '#4a3b26' }));
-    pole.position.y = 3.25;
-    const flag = new Mesh(new PlaneGeometry(2.8, 1.7), new MeshLambertMaterial({ color, side: DoubleSide }));
+    const pole = new Mesh(new BoxGeometry(0.1, 5, 0.1), new MeshLambertMaterial({ color: '#4a3b26' }));
+    pole.position.y = 2.5;
+    const flag = new Mesh(new PlaneGeometry(1.8, 1.1), new MeshLambertMaterial({ color, side: DoubleSide }));
     flag.rotation.y = Math.PI / 2;
-    flag.position.set(0, 5.5, 1.45);
+    flag.position.set(0, 4.3, 0.95);
     banner.add(pole, flag);
     const iconGeo = new PlaneGeometry(1, 1);
     iconGeo.rotateX(-Math.PI / 2);
     iconGeo.rotateY(-Math.PI / 2);
     const icon = new Mesh(iconGeo, new MeshBasicMaterial({ map: this.texture(topIconCanvas(u.type.icon)), transparent: true, depthWrite: false }));
-    const markerMat = new MeshBasicMaterial({ map: this.texture(markerCanvas(u.type.icon, side.color)), transparent: true, depthTest: false });
-    const unknownMat = new MeshBasicMaterial({ map: this.texture(markerCanvas('unknown', '#7d7a72')), transparent: true, depthTest: false });
-    const marker = new Mesh(iconGeo, markerMat);
-    marker.renderOrder = 10;
-    const ring = new Mesh(iconGeo, new MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.85, depthTest: false }));
-    ring.renderOrder = 9;
-    group.add(plate, outline, front, arrow, banner, icon, marker, ring);
+    // Zoomed-out marker, built from parts so it can stretch along the frontage without distorting.
+    const flat = new PlaneGeometry(1, 1);
+    flat.rotateX(-Math.PI / 2);
+    const markerBodyMat = new MeshBasicMaterial({ color, transparent: true, opacity: 0.82, depthTest: false });
+    const markerBody = new Mesh(flat, markerBodyMat);
+    markerBody.renderOrder = 10;
+    const rect = new BufferGeometry().setFromPoints([[-0.5, -0.5], [0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, 0.5], [-0.5, -0.5]].map(([x, z]) => new Vector3(x, 0, z)));
+    const markerBorderMat = new LineBasicMaterial({ color: '#f6efdc', transparent: true, opacity: 0.85, depthTest: false });
+    const markerBorder = new LineSegments(rect, markerBorderMat);
+    markerBorder.renderOrder = 11;
+    const symbolMat = new MeshBasicMaterial({ map: this.texture(barSymbolCanvas(u.type.icon)), transparent: true, depthTest: false });
+    const unknownSymbolMat = new MeshBasicMaterial({ map: this.texture(barSymbolCanvas('unknown')), transparent: true, depthTest: false });
+    const markerSymbol = new Mesh(iconGeo, symbolMat);
+    markerSymbol.renderOrder = 12;
+    const chev = new Shape();
+    chev.moveTo(1, 0);
+    chev.lineTo(-0.2, 0.9);
+    chev.lineTo(0.15, 0);
+    chev.lineTo(-0.2, -0.9);
+    chev.closePath();
+    const chevGeo = new ShapeGeometry(chev);
+    chevGeo.rotateX(-Math.PI / 2);
+    const markerChevron = new Mesh(chevGeo, new MeshBasicMaterial({ color: '#f6efdc', transparent: true, opacity: 0.9, side: DoubleSide, depthTest: false }));
+    markerChevron.renderOrder = 12;
+    const marker = new Group();
+    marker.add(markerBody, markerBorder, markerSymbol, markerChevron);
+    group.add(plate, outline, front, arrow, banner, icon, marker);
     this.root.add(group);
     const seeds = new Float32Array(cap * 3);
     let s = (u.id + 1) * 9973;
     const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     for (let k = 0; k < seeds.length; k++) seeds[k] = rnd();
-    return { unit: u, group, plate, outline, outlineMat, front, frontMat, arrow, banner, icon, marker, markerMat, unknownMat, ring, kind, base, cap, seeds, color };
+    return {
+      unit: u, group, plate, outline, outlineMat, front, frontMat, arrow, banner, icon,
+      marker, markerBody, markerBodyMat, markerBorder, markerBorderMat, markerSymbol, symbolMat, unknownSymbolMat, markerChevron,
+      kind, base, cap, seeds, color,
+    };
   }
 
   setSelected(ids: Iterable<number>) {
@@ -181,8 +211,7 @@ export class UnitLayer {
       v.front.visible = v.arrow.visible = blocks && known && !routing;
       v.banner.visible = v.icon.visible = blocks && known && !routing;
       v.marker.visible = !blocks;
-      v.marker.material = known ? v.markerMat : v.unknownMat;
-      v.ring.visible = !blocks && (sel || hov);
+      v.markerSymbol.material = known ? v.symbolMat : v.unknownSymbolMat;
       if (blocks) {
         v.plate.scale.set(depth + 1, 0.3, frontage + 1);
         v.plate.position.y = 0.2;
@@ -191,23 +220,36 @@ export class UnitLayer {
         const base = known ? v.color : GREY;
         v.outlineMat.color.copy(sel ? WHITE : hov ? tmpColor.set('#fff4c8') : base);
         v.outlineMat.opacity = (sel ? 1 : hov ? 0.95 : 0.6) * fade;
-        v.front.scale.set(0.45, 0.35, frontage + 0.8);
+        v.front.scale.set(0.3, 0.22, frontage + 0.8);
         v.front.position.set(depth / 2 + 0.6, 0.25, 0);
         v.frontMat.color.copy(v.color).offsetHSL(0, 0.1, recovering ? -0.1 : 0.12);
-        v.arrow.position.set(depth / 2 + 3.2, 0.35, 0);
-        v.arrow.scale.setScalar(Math.max(1.2, Math.min(3, frontage / 14)));
+        v.arrow.position.set(depth / 2 + 2.4, 0.3, 0);
+        v.arrow.scale.setScalar(Math.max(0.8, Math.min(1.6, frontage / 30)));
         v.banner.position.set(depth / 2 - 0.5, 0, 0);
-        const iconSize = Math.max(3.5, Math.min(10, Math.min(frontage, depth) * 0.9));
+        const iconSize = Math.max(3, Math.min(6.5, Math.min(frontage, depth) * 0.7));
         v.icon.scale.set(iconSize, 1, iconSize);
-        v.icon.position.y = height + 2.4;
+        v.icon.position.y = height + 1.6;
       } else {
-        const ms = cameraDistance * 0.06;
-        v.marker.scale.set(ms * 1.3, 1, ms * 1.3);
+        const ms = cameraDistance * 0.045;
+        // Long along the real frontage (so battle lines read as lines), slim in depth.
+        const along = Math.max(ms * 1.5, Math.min(ms * 5, frontage * 1.05));
+        const deep = Math.max(ms * 0.42, Math.min(ms * 1.4, depth * 0.9));
         v.marker.position.y = 3;
-        v.ring.scale.set(ms * 1.12, 1, ms * 1.12);
-        v.ring.position.y = 2.9;
-        v.markerMat.color.set(routing ? '#ff8a7a' : recovering ? '#ffc070' : '#ffffff');
-        v.markerMat.opacity = routing ? 0.55 : 1;
+        v.markerBody.scale.set(deep, 1, along);
+        v.markerBorder.scale.set(deep, 1, along);
+        // The symbol canvas is 2:1 (width along the frontage, height across the bar's depth).
+        const symH = deep * 0.95;
+        v.markerSymbol.scale.set(symH, 1, Math.min(symH * 2, along * 0.9));
+        v.markerSymbol.position.y = 0.1;
+        v.markerChevron.position.set(deep / 2 + ms * 0.08, 0.1, 0);
+        v.markerChevron.scale.setScalar(ms * 0.16);
+        v.markerChevron.visible = known && !routing;
+        v.markerBodyMat.color.copy(known ? v.color : GREY);
+        if (routing) v.markerBodyMat.color.lerp(tmpColor.set('#7a3a30'), 0.45);
+        else if (recovering) v.markerBodyMat.color.lerp(tmpColor.set('#c89040'), 0.35);
+        v.markerBodyMat.opacity = routing ? 0.45 : 0.82;
+        v.markerBorderMat.color.set(sel ? '#ffffff' : hov ? '#fff4c8' : '#f6efdc');
+        v.markerBorderMat.opacity = sel ? 1 : hov ? 0.95 : 0.55;
       }
 
       // Soldiers: a grid sized to the formation footprint, thinned as HP falls.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planClickMove, planLine, roleRow, simplifyPath, smoothPath, type LineUnit } from '../src/input/formation';
+import { planClickMove, planLine, roleRow, routeLanes, simplifyPath, smoothPath, type LineUnit } from '../src/input/formation';
 
 const unit = (id: number, x: number, z: number, row = 1, frontage = 50, depth = 10): LineUnit => ({ id, x, z, facing: 0, frontage, depth, row });
 
@@ -40,5 +40,21 @@ describe('draw-the-line placement', () => {
     expect(out).toHaveLength(2);
     for (const p of out) expect(Math.abs(p.facing)).toBeLessThan(0.1);
     expect(Math.abs(out[0].z - out[1].z)).toBeGreaterThan(45);
+  });
+
+  it('route lanes give a group parallel copies of a curve', () => {
+    const curve = Array.from({ length: 40 }, (_, i) => ({ x: i * 5, z: Math.sin(i / 6) * 40 }));
+    const lanes = routeLanes(curve, [{ id: 0, x: 0, z: -30 }, { id: 1, x: 0, z: 30 }]);
+    const a = lanes[0].path.slice(3, -3), b = lanes[1].path.slice(1);
+    // Parallel: every point of one lane stays the same distance from the other lane.
+    const gapAt = (p: { x: number; z: number }) => Math.min(...b.map((q) => Math.hypot(p.x - q.x, p.z - q.z)));
+    const gap0 = gapAt(a[0]);
+    expect(gap0).toBeGreaterThan(20);
+    for (const p of a) expect(Math.abs(gapAt(p) - gap0)).toBeLessThan(3.5);
+    // Each lane starts where its own unit stands.
+    expect(lanes[0].path[0]).toEqual({ x: 0, z: -30 });
+    // A single unit's lane is the drawn curve itself.
+    const solo = routeLanes(curve, [{ id: 0, x: 0, z: 0 }])[0].path;
+    expect(Math.abs(solo[Math.floor(solo.length / 2)].z - Math.sin(solo[Math.floor(solo.length / 2)].x / 30) * 40)).toBeLessThan(3);
   });
 });

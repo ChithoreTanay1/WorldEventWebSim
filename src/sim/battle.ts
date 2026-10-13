@@ -283,7 +283,10 @@ export class Battle implements CombatCtx {
       u.changedFormationThisTurn = true;
     }
     this.plannedFormation.clear();
-    for (const u of this.units) u.lastTargetDist = Infinity;
+    for (const u of this.units) {
+      u.lastTargetDist = Infinity;
+      u.hpAtTurnStart = u.hp;
+    }
     this.phase = 'resolving';
     this.tick = 0;
     this.sub = 0;
@@ -1029,7 +1032,7 @@ export class Battle implements CombatCtx {
     const neutral = this.objectives.filter((o) => !o.owner).reduce((s, o) => s + o.vp, 0);
     for (const s of sides) {
       const other = sides.find((o) => o !== s)!;
-      const casualties = Math.round((this.powerLost(other.id) - this.powerLost(s.id)) * 120);
+      const casualties = Math.round((this.powerLost(other.id) - this.powerLost(s.id)) * 80);
       const owned = this.objectives.filter((o) => o.owner === s.id).reduce((a, o) => a + o.vp, 0);
       if (advancePressure) {
         const share = total > 0 ? (owned + neutral) / total : 1;
@@ -1043,7 +1046,26 @@ export class Battle implements CombatCtx {
     }
   }
 
+  /** Men represented by a unit's HP (figures scale with HP). */
+  men(u: Unit, hp = u.hp): number {
+    return Math.round(u.type.figures * u.strength * Math.max(0, hp) / u.maxHp);
+  }
+
+  private reportCasualties() {
+    const lines: { side: string; text: string; lost: number }[] = [];
+    for (const u of this.units) {
+      const lost = this.men(u, u.hpAtTurnStart) - this.men(u);
+      if (lost <= 0) continue;
+      const mine = u.side === this.player;
+      // Enemy losses are only reported for units we can make out.
+      if (!mine && this.seen(this.player, u) < 3) continue;
+      lines.push({ side: u.side, lost, text: `${u.name} lose ${lost} ${u.type.category === 'elephant' ? (lost === 1 ? 'elephant' : 'elephants') : 'men'} (${this.men(u)} left).` });
+    }
+    for (const l of lines.sort((a, b) => b.lost - a.lost)) this.say(l.side, l.text, l.side === this.player ? 'bad' : 'good');
+  }
+
   private finishTurn() {
+    this.reportCasualties();
     this.scoreVictoryPoints(true);
     const sides = [...this.sides.values()];
     // Extension: an army with nothing left standing or recovering is knocked out.

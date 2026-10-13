@@ -131,7 +131,9 @@ function frame(now: number) {
     hud.update(speed, replayAt !== null);
   }
   const hover = controls.hoverId !== null ? battle.unit(controls.hoverId) : null;
-  hud.showTooltip(hover && hover.alive ? hover : null, lastMouse.x, lastMouse.y);
+  const dragHint = controls.dragHint();
+  hud.showDragHint(dragHint, lastMouse.x, lastMouse.y);
+  hud.showTooltip(hover && hover.alive && !dragHint ? hover : null, lastMouse.x, lastMouse.y);
   if (battle.result && !resultShown && battle.phase === 'ended') {
     resultShown = true;
     hud.update(speed, false);

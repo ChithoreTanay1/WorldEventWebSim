@@ -152,3 +152,34 @@ export function roleRow(category: string, formation: string): number {
   if (category === 'cavalry') return 3;
   return 2;
 }
+
+/**
+ * Give each unit of a group its own copy of a drawn route, shifted sideways by the unit's offset from
+ * the route's start, so a group follows a curve in parallel lanes instead of piling onto one line.
+ */
+export function routeLanes(rawPath: XZ[], units: { id: number; x: number; z: number }[]): { id: number; path: XZ[] }[] {
+  // Drop mouse jitter first (keep a point every ~5 m), then round the curve through what's left.
+  const path = smoothPath(simplifyPath(rawPath, 5), 3);
+  if (path.length < 2) return units.map((u) => ({ id: u.id, path }));
+  const normalAt = (i: number) => {
+    const a = path[Math.max(0, i - 1)], b = path[Math.min(path.length - 1, i + 1)];
+    const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    return { x: -(b.z - a.z) / l, z: (b.x - a.x) / l };
+  };
+  const n0 = normalAt(0);
+  const cx = units.reduce((s, u) => s + u.x, 0) / units.length;
+  const cz = units.reduce((s, u) => s + u.z, 0) / units.length;
+  return units.map((u) => {
+    const off = units.length === 1 ? 0 : (u.x - cx) * n0.x + (u.z - cz) * n0.z;
+    const lane = path.map((p, i) => ({ x: p.x + normalAt(i).x * off, z: p.z + normalAt(i).z * off }));
+    // Join each lane where its own unit stands: drop leading points it has already passed, so the
+    // route doesn't double back to the drag's starting line.
+    let k = 0;
+    while (k < lane.length - 2) {
+      const a = lane[k], b = lane[k + 1];
+      if ((b.x - a.x) * (b.x - u.x) + (b.z - a.z) * (b.z - u.z) > 0) break;
+      k++;
+    }
+    return { id: u.id, path: [{ x: u.x, z: u.z }, ...lane.slice(k + 1)] };
+  });
+}

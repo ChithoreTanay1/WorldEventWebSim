@@ -2,11 +2,11 @@
 // markers and the DOM unit cards, so every view uses the same symbol.
 
 /** Draw `icon` in white-ish strokes inside the box (x, y, w, h). */
-export function drawSymbol(ctx: CanvasRenderingContext2D, icon: string, x: number, y: number, w: number, h: number, color = '#f6efdc') {
+export function drawSymbol(ctx: CanvasRenderingContext2D, icon: string, x: number, y: number, w: number, h: number, color = '#f6efdc', weight = 1) {
   ctx.save();
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
-  ctx.lineWidth = Math.max(1.5, w * 0.06);
+  ctx.lineWidth = Math.max(1.2, w * 0.04 * weight);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   const cx = x + w / 2, cy = y + h / 2;
@@ -98,39 +98,80 @@ export function drawSymbol(ctx: CanvasRenderingContext2D, icon: string, x: numbe
   ctx.restore();
 }
 
-/** A NATO-style unit marker: framed, filled box with the symbol. Returns the canvas. */
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/**
+ * A slim NATO-style unit tag: rounded, translucent faction fill, hairline light border, thin
+ * symbol, and a small chevron at the top marking the unit's front.
+ */
 export function markerCanvas(icon: string, fill: string, size = 128): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
   const ctx = c.getContext('2d')!;
-  const w = size * 0.86, h = size * 0.58;
-  const x = (size - w) / 2, y = (size - h) / 2 + size * 0.06;
-  // Facing notch: the top of the marker points toward the unit's front.
-  ctx.fillStyle = '#f6efdc';
+  const w = size * 0.74, h = size * 0.46;
+  const x = (size - w) / 2, y = (size - h) / 2 + size * 0.05;
+  // Facing chevron.
+  ctx.strokeStyle = 'rgba(246, 239, 220, 0.95)';
+  ctx.lineWidth = size * 0.028;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   ctx.beginPath();
-  ctx.moveTo(size / 2, y - size * 0.2);
-  ctx.lineTo(size / 2 - size * 0.1, y - size * 0.02);
-  ctx.lineTo(size / 2 + size * 0.1, y - size * 0.02);
-  ctx.closePath();
-  ctx.fill();
+  ctx.moveTo(size / 2 - size * 0.07, y - size * 0.05);
+  ctx.lineTo(size / 2, y - size * 0.12);
+  ctx.lineTo(size / 2 + size * 0.07, y - size * 0.05);
+  ctx.stroke();
+  // Body.
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+  ctx.shadowBlur = size * 0.05;
+  roundRect(ctx, x, y, w, h, size * 0.06);
+  ctx.globalAlpha = 0.86;
   ctx.fillStyle = fill;
-  ctx.strokeStyle = '#141414';
-  ctx.lineWidth = size * 0.05;
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeRect(x, y, w, h);
-  drawSymbol(ctx, icon, x + w * 0.12, y + h * 0.16, w * 0.76, h * 0.68);
+  ctx.fill();
+  ctx.restore();
+  const grad = ctx.createLinearGradient(0, y, 0, y + h);
+  grad.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0.12)');
+  roundRect(ctx, x, y, w, h, size * 0.06);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.lineWidth = size * 0.018;
+  ctx.strokeStyle = 'rgba(246, 239, 220, 0.9)';
+  ctx.stroke();
+  drawSymbol(ctx, icon, x + w * 0.2, y + h * 0.2, w * 0.6, h * 0.6);
   return c;
 }
 
-/** Just the symbol on transparency, for the top face of a block. */
+/** Just the thin symbol with a soft shadow, for the top face of a block. */
 export function topIconCanvas(icon: string, size = 128): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = 'rgba(20, 18, 14, 0.55)';
-  ctx.fillRect(size * 0.06, size * 0.2, size * 0.88, size * 0.6);
-  drawSymbol(ctx, icon, size * 0.16, size * 0.27, size * 0.68, size * 0.46);
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+  ctx.shadowBlur = size * 0.06;
+  drawSymbol(ctx, icon, size * 0.22, size * 0.3, size * 0.56, size * 0.4, 'rgba(250, 245, 232, 0.92)');
+  return c;
+}
+
+/** A crisp, bolder symbol on a 2:1 transparent canvas, sized to fill a zoomed-out marker bar. */
+export function barSymbolCanvas(icon: string): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 128;
+  const ctx = c.getContext('2d')!;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+  ctx.shadowBlur = 4;
+  // Thicker strokes than the 3D top icon so it survives being drawn small.
+  drawSymbol(ctx, icon, 64, 22, 128, 84, 'rgba(252, 248, 236, 0.98)', 1.9);
   return c;
 }

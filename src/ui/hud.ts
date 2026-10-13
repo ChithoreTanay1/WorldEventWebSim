@@ -49,6 +49,8 @@ export class Hud {
   private readonly orderBar = h('div', 'orders');
   private readonly overlay = h('div', 'overlay');
   readonly tooltip = h('div', 'tooltip');
+  private readonly dragLabel = h('div', 'drag-hint');
+  private readonly hint = h('div', 'context-hint');
   private logCount = -1;
   private selection: number[] = [];
   private iconCache = new Map<string, string>();
@@ -82,7 +84,7 @@ export class Hud {
       h('div', 'panel-title', 'Battle log'), h('div', 'log-wrap', this.log),
     );
     this.buildOrderBar();
-    root.append(top, this.groupsBar, right, this.card, this.orderBar, this.overlay, this.tooltip);
+    root.append(top, this.groupsBar, right, this.card, this.hint, this.orderBar, this.overlay, this.tooltip, this.dragLabel);
     this.renderGroups();
   }
 
@@ -230,6 +232,36 @@ export class Hud {
     }
     this.renderOrderBar();
     this.renderCard();
+    this.renderHint();
+  }
+
+  /** One line explaining what the mouse does with the current selection and order type. */
+  private renderHint() {
+    const b = this.battle;
+    const units = this.controls.commandable();
+    let text = '';
+    if (b.phase === 'resolving') text = 'The turn is playing out. Orders resume when it ends.';
+    else if (this.mode === 'replay') text = 'Replaying the last turn.';
+    else if (!units.length) text = b.phase === 'deployment' ? 'Select units (click or drag a box), then drag them into place inside the dashed zone.' : 'Select units: click, Shift+click, drag a box, or double-click for all of a type.';
+    else {
+      const type = ORDER_LABEL[this.controls.orderType];
+      const many = units.length > 1;
+      text = b.phase === 'deployment'
+        ? `Right-click: place here · Right-drag: place ${many ? 'them along a line' : 'along a path'} · Drag from a unit: place at the route's end · R T F G: formation`
+        : `Order: ${type} (1-5 to change) · Right-click: move · Drag from a selected unit: draw the route${many ? ' (lanes)' : ''} · Right-drag: ${many ? 'form a line along the curve' : 'path'}${many ? '' : ' (start on the unit to rotate)'} · Right-click enemy: ${this.controls.orderType === 'shoot' ? 'shoot it' : this.controls.orderType === 'fallback' ? 'back away from it' : 'attack it'}`;
+    }
+    this.hint.textContent = text;
+  }
+
+  showDragHint(text: string | null, x: number, y: number) {
+    if (!text) {
+      this.dragLabel.style.display = 'none';
+      return;
+    }
+    this.dragLabel.style.display = 'block';
+    this.dragLabel.style.left = `${x + 18}px`;
+    this.dragLabel.style.top = `${y - 34}px`;
+    this.dragLabel.textContent = text;
   }
 
   private renderOrderBar() {
@@ -319,7 +351,7 @@ export class Hud {
     this.card.className = 'card';
     this.card.replaceChildren(
       head,
-      this.bar('HP', u.hpFrac, side.color, `${Math.round(u.hp)} / ${Math.round(u.maxHp)}`),
+      this.bar('Men', u.hpFrac, side.color, `${b.men(u)} / ${b.men(u, u.maxHp)}  ·  HP ${Math.round(u.hp)}`),
       this.bar('Organization', Math.max(0, u.org) / u.baseMaxOrg, STATUS_COLOR[u.status], `${Math.round(u.org)} / ${Math.round(u.maxOrg)}`, [m.rally, m.recover, u.maxOrg / u.baseMaxOrg]),
       ...(showStamina ? [this.bar('Stamina', (u.staminaFrac - 0.4) / 0.45, '#9a8a6a', u.staminaFrac <= 0.4 ? 'Exhausted' : `${Math.round(u.staminaFrac * 100)}%`)] : []),
       ...(t.ranged ? [this.bar('Ammunition', u.ammo / t.ranged.ammo, '#c9b27a', `${u.ammo} volleys`)] : []),
@@ -481,12 +513,14 @@ function controlsList(): HTMLElement {
     ['Left click / drag', 'Select / box-select. Shift adds. Double-click: on-screen units of the same type and formation.'],
     ['1 2 3 4 5 · Y', 'Order type: Fire & Advance, Run, Shoot, Walk, Fallback · clear orders'],
     ['Right click ground', 'Move there with the current order type (a group keeps side by side)'],
+    ['Left-drag from a selected unit', 'Draw the route: the unit follows the curve exactly; a group follows it in parallel lanes'],
     ['Right-drag', 'One unit: draw its path · several: lay them along the line, stacked by role · starting on the unit: rotate it'],
     ['Right click enemy / friend', 'Lock on (Shoot, chase, close and fire, back away) / follow it in column'],
     ['R T F G', 'Formation slots for the selected units (applied when the turn starts)'],
     ['Ctrl / Alt / Shift + 1-9', 'Assign / recall / add to control group (Ctrl+Shift: assign exclusively)'],
     ['Space / Enter · P', 'End turn · replay last turn'],
-    ['W A S D / arrows / edges · wheel · Q E · middle-drag', 'Pan · zoom · rotate · tilt'],
+    ['W A S D / arrows / edges · wheel · Q E', 'Pan · zoom · rotate'],
+    ['Ctrl+Shift+left-drag / middle-drag', 'Tilt the camera up and down (and turn it)'],
     ['V / Z · + -', 'Top-down view / follow selected · playback speed'],
   ];
   return h('table', 'controls', h('tbody', '', ...rows.map(([k, v]) => h('tr', '', h('td', 'key', k), h('td', '', v)))));

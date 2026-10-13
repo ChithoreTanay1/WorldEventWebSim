@@ -190,6 +190,12 @@ export class ArmyAI {
       b.setOrder(u.id, { type: 'fallback', target: threats[0].id });
       return;
     }
+    // Losing the exchange of arrows while merely harassing? Break off and wait out of range.
+    const enemy = [...b.sides.keys()].find((k) => k !== this.side)!;
+    if (this.current === 'harass' && b.powerLost(this.side) > b.powerLost(enemy) + 0.02) {
+      this.goTo(b, u, u.ai.post!.x, u.ai.post!.z, 'walk');
+      return;
+    }
     // Each horse archer works its own lane (its starting z), so they don't bunch on one target.
     const lane = u.ai.post!.z;
     // Foot archers outrange horse bows: prefer targets they don't cover.
@@ -214,7 +220,15 @@ export class ArmyAI {
 
   private skirmisher(b: Battle, u: Unit, enemies: Unit[]) {
     const threat = enemies.find((e) => this.threatens(e, u));
-    if (u.ammo === 0 || (threat && Math.hypot(threat.x - u.x, threat.z - u.z) < 140)) {
+    // Javelins are outranged by bows: stay out of reach of archers that still have arrows.
+    const bows = enemies.filter((e) => e.type.ranged && e.ammo > 0 && e.standing && e.type.ranged.weapon.bands[e.type.ranged.weapon.bands.length - 1][1] > 100);
+    const bow = bows.sort((a, c) => Math.hypot(a.x - u.x, a.z - u.z) - Math.hypot(c.x - u.x, c.z - u.z))[0];
+    if (bow && Math.hypot(bow.x - u.x, bow.z - u.z) < 240) {
+      const a = Math.atan2(u.z - bow.z, u.x - bow.x);
+      this.goTo(b, u, bow.x + Math.cos(a) * 280, bow.z + Math.sin(a) * 280, 'walk');
+      return;
+    }
+    if (u.ammo === 0 || u.orgFrac < 0.7 || (threat && Math.hypot(threat.x - u.x, threat.z - u.z) < 140)) {
       this.goTo(b, u, u.x + Math.sign(this.rear(b) - u.x) * 150, u.z, 'run');
       return;
     }
@@ -298,6 +312,9 @@ export class ArmyAI {
     if (angle > 70) s += 2;
     else if (e.type.melee.antiCavalry) s -= 2;
     if (e.contacts.length > 0 && angle > 70) s += 1;
+    // Formed melee troops (and elephants) close by will punish a charge: avoid supported targets.
+    const support = b.units.filter((f) => f.side === e.side && f !== e && f.standing && !f.type.ranged && f.type.category !== 'cavalry' && Math.hypot(f.x - e.x, f.z - e.z) < 90).length;
+    s -= 1.2 * support;
     return s;
   }
 }

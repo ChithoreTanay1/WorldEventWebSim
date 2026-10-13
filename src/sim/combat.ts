@@ -10,6 +10,13 @@ import type { Terrain } from './terrain';
 import type { Category, FormationDef, RangedWeapon } from './types';
 import type { Unit } from './unit';
 
+/**
+ * Casualty multipliers on HP damage (our extension; organization loss is unaffected). Tuned so a turn
+ * of even melee costs each side roughly a tenth of its men, a good charge takes a fifth, and a
+ * routed unit caught in melee is cut down quickly.
+ */
+export const CASUALTIES = { melee: 4, charge: 2.5, ranged: 2.2, pursuit: 2 };
+
 export interface CombatCtx {
   forms: Record<string, FormationDef>;
   terrain: Terrain;
@@ -117,7 +124,9 @@ export function meleeSwing(ctx: CombatCtx, a: Unit, d: Unit): Hit {
   const hp = swing * Math.max(0.2, factor);
   const flank = flankOf(ctx, d, a);
   const org = orgLoss(ctx, d, hp, a.type.melee.weapon.orgRatio, 10, a.type.melee.flankOrgMod * flank);
-  return { hp, org };
+  // Casualties: the wiki's HP damage is mostly a vehicle for organization loss, so men barely fall.
+  // We keep org exactly as the wiki computes it and scale the men killed. Fleeing men die in droves.
+  return { hp: hp * CASUALTIES.melee * (d.routing ? CASUALTIES.pursuit : 1), org };
 }
 
 /** All five wiki charge requirements. */
@@ -199,8 +208,8 @@ export function chargeImpact(ctx: CombatCtx, a: Unit, d: Unit): ChargeResult {
   const aOrg = orgLoss(ctx, a, backlash, td.weapon.orgRatio, 10, 0);
 
   return {
-    defender: { hp: dmg, org: dOrg },
-    attacker: { hp: backlash, org: aOrg },
+    defender: { hp: dmg * CASUALTIES.charge, org: dOrg },
+    attacker: { hp: backlash * CASUALTIES.charge, org: aOrg },
     staminaA: 0.75 * CHARGE_STAMINA * (1 - flank) + 0.25 * CHARGE_STAMINA,
     staminaD: 0.75 * CHARGE_STAMINA * flank + 0.25 * CHARGE_STAMINA,
     flank,
@@ -245,5 +254,5 @@ export function rangedShot(ctx: CombatCtx, s: Unit, t: Unit, dist: number, share
   let bonus = 0;
   if (r.weapon.enfilade && shapeForm(ctx, t).rearFireVulnerable && bearingFrom(t, s.x, s.z) > 135) bonus += 1.5;
   const org = orgLoss(ctx, t, hp, r.weapon.orgRatio, 1, bonus, true);
-  return { hp, org };
+  return { hp: hp * CASUALTIES.ranged, org };
 }

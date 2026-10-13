@@ -26,6 +26,7 @@ npm run build   # static build in dist/ (GitHub Pages / Netlify)
 | Input | Action |
 |---|---|
 | Left click / drag | Select / box-select. Shift adds. Double-click: on-screen units of the same type and formation |
+| **Left-drag from a selected unit** | Draw its route: the unit follows the curve exactly; a group follows it in parallel lanes. A label by the cursor says what the drag will do |
 | **1 2 3 4 5** | Order type: Fire & Advance, Run, Shoot, Walk, Fallback. Changing the type re-stamps the selection's drawn paths |
 | **Y** | Clear the selection's orders |
 | Right click ground | Move there with the current order type (a group stays side by side) |
@@ -34,7 +35,8 @@ npm run build   # static build in dist/ (GitHub Pages / Netlify)
 | **R T F G** | Formation slots (applied when the turn starts) |
 | Ctrl / Alt / Shift + 1-9 | Assign / recall / add to control group (Ctrl+Shift assigns exclusively). On-screen groups bar: click recalls, Ctrl+click overwrites, **+** saves to a free slot |
 | Space / Enter · P | End turn · replay last turn |
-| WASD / arrows / edges · wheel · Q E · middle-drag | Pan · zoom (far out: NATO markers) · rotate · tilt |
+| WASD / arrows / edges · wheel · Q E | Pan · zoom (far out: NATO markers) · rotate |
+| **Ctrl+Shift+left-drag** / middle-drag | Tilt the camera up and down (and turn it) |
 | V · Z · + - | Top-down · follow selected · playback speed |
 | Bottom bar | Order type, formation, autofire range (Close / Effective / Max) |
 
@@ -58,6 +60,7 @@ npm run build   # static build in dist/ (GitHub Pages / Netlify)
 ## Mapping to this era and our estimates
 
 - **Era mapping:** Spear Ring stands in for the square. War elephants use a flankable "Elephant Line" posture with a large organization aura. Javelin skirmishers use Loose order. Horse archers fire all round, like the wiki's cavalry.
+- **Casualties (extension):** in the wiki, HP damage is mostly a vehicle for organization loss, so men barely die. We keep organization damage exactly as the wiki computes it, but multiply the men killed: melee ×4, charges ×2.5, missiles ×2.2, and ×2 more against routers caught in melee. Both sides lose men in a fight, a charger pays when it hits braced spears, and each turn's losses are reported in the log.
 - **Extensions not in the wiki:**
   - Spears add +0.35 charge resistance against horse and elephants.
   - Routing elephants trample whatever they run through.

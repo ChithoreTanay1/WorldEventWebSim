@@ -9,7 +9,7 @@ import type { Order, OrderType, XZ } from '../sim/types';
 import type { Unit } from '../sim/unit';
 import type { View } from '../render/view';
 import { ORDER_COLORS, type OrderVisual } from '../render/overlay';
-import { planClickMove, planLine, roleRow, simplifyPath, type LineUnit, type Placement } from './formation';
+import { planClickMove, planLine, roleRow, routeLanes, simplifyPath, type LineUnit, type Placement } from './formation';
 
 export interface ControlHandlers {
   onSelection(ids: number[]): void;
@@ -38,7 +38,7 @@ interface Drag {
   lastY: number;
   moved: boolean;
   points: XZ[];
-  mode: 'rotate' | 'path' | 'line' | null;
+  mode: 'rotate' | 'path' | 'line' | 'route' | 'camera' | null;
   unit: Unit | null;
 }
 
@@ -55,7 +55,7 @@ export class Controls {
   hoverId: number | null = null;
   private keys = new Set<string>();
   private drag: Drag | null = null;
-  private preview: { placements?: Placement[]; rotate?: { id: number; facing: number }; path?: { id: number; pts: XZ[] } } | null = null;
+  private preview: { placements?: Placement[]; rotate?: { id: number; facing: number }; routes?: { id: number; path: XZ[] }[] } | null = null;
   private mouse = { x: -1, y: -1, inside: false };
   private readonly box: HTMLDivElement;
 
@@ -167,6 +167,19 @@ export class Controls {
     if (this.drag) return;
     this.canvas.setPointerCapture(e.pointerId);
     const d: Drag = { button: e.button, startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY, moved: false, points: [], mode: null, unit: null };
+    if (e.button === 0 && e.ctrlKey && e.shiftKey) {
+      // Ctrl+Shift+left-drag: tilt the camera up and down (and turn it left and right).
+      d.mode = 'camera';
+    } else if (e.button === 0 && this.planning) {
+      // Left-drag starting on a selected unit draws the route the selection will follow.
+      const under = this.unitAt(e.clientX, e.clientY);
+      const units = this.commandable();
+      if (under && units.some((u) => u.id === under.id)) {
+        d.mode = 'route';
+        d.unit = under;
+        d.points.push({ x: under.x, z: under.z });
+      }
+    }
     if (e.button === 2) {
       const g = this.view.pickGround(e.clientX, e.clientY);
       if (g) d.points.push(g);
@@ -194,8 +207,13 @@ export class Controls {
       return;
     }
     if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > DRAG_PX) d.moved = true;
-    if (d.button === 1) {
+    if (d.button === 1 || d.mode === 'camera') {
       this.view.rig.rotate((e.clientX - d.lastX) * 0.006, (e.clientY - d.lastY) * 0.004);
+    } else if (d.button === 0 && d.mode === 'route') {
+      const g = this.view.pickGround(e.clientX, e.clientY);
+      const last = d.points[d.points.length - 1];
+      if (g && (!last || Math.hypot(g.x - last.x, g.z - last.z) > 1.5)) d.points.push(g);
+      this.updatePreview(d);
     } else if (d.button === 0 && d.moved) {
       const x = Math.min(d.startX, e.clientX), y = Math.min(d.startY, e.clientY);
       Object.assign(this.box.style, { display: 'block', left: `${x}px`, top: `${y}px`, width: `${Math.abs(e.clientX - d.startX)}px`, height: `${Math.abs(e.clientY - d.startY)}px` });
@@ -224,19 +242,44 @@ export class Controls {
     if (d.mode === 'rotate') {
       this.preview = { rotate: { id: d.unit.id, facing: Math.atan2(last.z - d.unit.z, last.x - d.unit.x) } };
     } else if (d.mode === 'path') {
-      this.preview = { path: { id: d.unit.id, pts: simplifyPath(d.points, 12) } };
+      this.preview = { routes: routeLanes(d.points, [d.unit]) };
+    } else if (d.mode === 'route') {
+      this.preview = { routes: routeLanes(d.points, this.commandable()) };
     } else {
       const { fx, fz } = this.view.rig.groundAxes();
       this.preview = { placements: planLine(d.points, this.commandable().map((u) => this.lineUnit(u)), { x: fx, z: fz }) };
     }
-    this.view.overlay.setTrail(d.mode === 'line' ? d.points : null);
+    // The drawn curve itself, in the colour of the order it will become.
+    // Routes and paths are drawn by their (smoothed) order preview; a line-formation drag also shows
+    // the de-jittered curve the units are being laid along.
+    this.view.overlay.setTrail(d.mode === 'line' ? simplifyPath(d.points, 5) : null, '#f4ecd4');
+  }
+
+  /** What the drag in progress will do, for the cursor label. */
+  dragHint(): string | null {
+    const d = this.drag;
+    if (!d || !d.mode || !this.preview) return d?.mode === 'camera' ? 'Camera: drag up/down to tilt, left/right to turn' : null;
+    const deploy = this.battle.phase === 'deployment';
+    const type = ORDER_KEYS.find(([t]) => t === this.orderType)![2];
+    const n = this.commandable().length;
+    const tail = ' · release to confirm · Esc cancels';
+    switch (d.mode) {
+      case 'rotate': return 'Rotate: unit turns on the spot to face the drag' + tail;
+      case 'path': return (deploy ? 'Place at the end of the drawn path' : `${type} along the drawn path`) + tail;
+      case 'route': return (deploy ? `Place ${n} unit${n > 1 ? 's' : ''} at the route's end` : `${type}: ${n} unit${n > 1 ? 's follow' : ' follows'} the drawn route${n > 1 ? ' in parallel lanes' : ''}`) + tail;
+      case 'line': return `${deploy ? 'Place' : type} ${n} units in a line along the curve (rows by role)` + tail;
+      default: return null;
+    }
   }
 
   private up(e: PointerEvent) {
     const d = this.drag;
     if (!d || e.button !== d.button) return;
     if (d.button === 0) {
-      if (d.moved) this.boxSelect(d, e.shiftKey);
+      if (d.mode === 'camera') {
+        // camera tilt only
+      } else if (d.mode === 'route' && this.preview) this.commitPreview();
+      else if (d.moved && d.mode !== 'route') this.boxSelect(d, e.shiftKey);
       else this.click(e);
     } else if (d.button === 2 && this.planning) {
       if (this.preview) this.commitPreview();
@@ -311,12 +354,14 @@ export class Controls {
         const u = this.battle.unit(p.rotate.id);
         this.battle.deploy(u.id, u.x, u.z, p.rotate.facing);
       } else this.battle.setOrder(p.rotate.id, { type: 'rotate', facing: p.rotate.facing });
-    } else if (p.path) {
-      const pts = p.path.pts.slice(1);
-      const n = p.path.pts.length;
-      const facing = Math.atan2(p.path.pts[n - 1].z - p.path.pts[n - 2].z, p.path.pts[n - 1].x - p.path.pts[n - 2].x);
-      const end = pts[pts.length - 1];
-      this.place(p.path.id, end.x, end.z, this.typeFor(this.battle.unit(p.path.id)) === 'fallback' ? facing + Math.PI : facing, pts);
+    } else if (p.routes) {
+      for (const r of p.routes) {
+        const n = r.path.length;
+        if (n < 2) continue;
+        const facing = Math.atan2(r.path[n - 1].z - r.path[n - 2].z, r.path[n - 1].x - r.path[n - 2].x);
+        const end = r.path[n - 1];
+        this.place(r.id, end.x, end.z, this.typeFor(this.battle.unit(r.id)) === 'fallback' ? facing + Math.PI : facing, r.path.slice(1));
+      }
     } else if (p.placements) {
       for (const pl of p.placements) this.place(pl.id, pl.x, pl.z, pl.facing);
     }
@@ -498,9 +543,12 @@ export class Controls {
         const u = b.unit(this.preview.rotate.id);
         out.push({ now: [], later: [], color: ORDER_COLORS.rotate, ghost: ghostOf(u, u.x, u.z, this.preview.rotate.facing), arrow: false });
       }
-      if (this.preview.path) {
-        const u = b.unit(this.preview.path.id);
-        out.push(this.projectPath(u, { type: this.typeFor(u), path: this.preview.path.pts.slice(1) }, color));
+      for (const r of this.preview.routes ?? []) {
+        const u = b.unit(r.id);
+        if (b.phase === 'deployment') {
+          const end = r.path[r.path.length - 1];
+          out.push({ now: [], later: [], color, ghost: ghostOf(u, end.x, end.z, u.facing), arrow: false });
+        } else out.push(this.projectPath(u, { type: this.typeFor(u), path: r.path }, color));
       }
       for (const pl of this.preview.placements ?? []) {
         const u = b.unit(pl.id);

@@ -73,6 +73,7 @@ export class View {
     this.rig.update(dt, f && f.alive ? { x: f.x, z: f.z } : null);
     this.effects.update(dt);
     this.units.update(a, b, alpha, time, this.rig.smoothedDistance);
+    this.overlay.setCameraDistance(this.rig.smoothedDistance);
     this.markings.update(selected, time);
     this.renderer.render(this.scene, this.rig.camera);
   }

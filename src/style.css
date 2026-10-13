@@ -201,3 +201,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .orders { flex-wrap: wrap; justify-content: center; max-width: calc(100% - 16px); }
   .vp-name { display: none; }
 }
+
+/* drag feedback */
+.drag-hint {
+  position: fixed; display: none; pointer-events: none; z-index: 16; padding: 5px 10px; font-size: 12.5px; white-space: nowrap;
+  background: rgba(20, 17, 12, 0.94); border: 1px solid var(--gold); border-radius: 4px; color: var(--text); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+.context-hint {
+  position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); max-width: min(980px, calc(100% - 700px)); text-align: center;
+  font-size: 12px; color: var(--text); background: rgba(20, 17, 12, 0.72); padding: 4px 12px; border-radius: 12px; pointer-events: none;
+}
+@media (max-width: 1300px) { .context-hint { display: none; } }
