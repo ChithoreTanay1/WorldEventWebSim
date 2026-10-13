@@ -1,0 +1,25 @@
+{
+  "id": "war-elephants",
+  "name": "War Elephants",
+  "class": "elephant",
+  "men": 12,
+  "hp": 14,
+  "attack": 30,
+  "charge": 55,
+  "armor": 7,
+  "speed": 2.8,
+  "runSpeed": 4.6,
+  "turnRate": 28,
+  "morale": 6,
+  "files": 6,
+  "minRanks": 1,
+  "maxRanks": 4,
+  "spacing": [
+    6,
+    7
+  ],
+  "causesFear": true,
+  "height": 4.2,
+  "icon": "elephant",
+  "note": "Shock and terror. Horses fear them. If panicked they stampede, trampling friend and foe. Slow to run and tire quickly when they do."
+}

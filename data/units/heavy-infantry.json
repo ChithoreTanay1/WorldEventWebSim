@@ -1,0 +1,25 @@
+{
+  "id": "heavy-infantry",
+  "name": "Heavy Swordsmen",
+  "class": "infantry",
+  "men": 140,
+  "hp": 1,
+  "attack": 6,
+  "charge": 3,
+  "armor": 6,
+  "speed": 2.5,
+  "runSpeed": 4.0,
+  "turnRate": 35,
+  "morale": 8,
+  "files": 28,
+  "minRanks": 2,
+  "maxRanks": 12,
+  "spacing": [
+    1.2,
+    1.4
+  ],
+  "shield": true,
+  "height": 1.8,
+  "icon": "sword",
+  "note": "Sword-and-shield core of the line. Holds against almost anything from the front."
+}

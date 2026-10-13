@@ -1,0 +1,30 @@
+{
+  "id": "skirmishers",
+  "name": "Javelin Skirmishers",
+  "class": "missile",
+  "men": 80,
+  "hp": 1,
+  "attack": 2,
+  "charge": 1,
+  "armor": 1,
+  "speed": 3.2,
+  "runSpeed": 5.2,
+  "turnRate": 60,
+  "morale": 4,
+  "range": 45,
+  "ammo": 8,
+  "accuracy": 0.08,
+  "reload": 5,
+  "fireArc": 180,
+  "files": 20,
+  "minRanks": 2,
+  "maxRanks": 6,
+  "spacing": [
+    2.0,
+    2.0
+  ],
+  "loose": true,
+  "height": 1.7,
+  "icon": "javelin",
+  "note": "A thin screen of javelin men. Retreats when threatened."
+}

@@ -1,0 +1,31 @@
+{
+  "id": "horse-archers",
+  "name": "Horse Archers",
+  "class": "cavalry",
+  "men": 100,
+  "hp": 1.4,
+  "attack": 3,
+  "charge": 3,
+  "armor": 2,
+  "speed": 5.5,
+  "runSpeed": 12,
+  "turnRate": 90,
+  "morale": 6,
+  "range": 130,
+  "ammo": 32,
+  "accuracy": 0.06,
+  "reload": 3,
+  "fireArc": 360,
+  "fireOnMove": true,
+  "files": 25,
+  "minRanks": 2,
+  "maxRanks": 6,
+  "spacing": [
+    2.4,
+    3.4
+  ],
+  "loose": true,
+  "height": 2.2,
+  "icon": "cav-archer",
+  "note": "Fast, loose, shoots on the move. Avoids melee; masters of the feigned retreat."
+}

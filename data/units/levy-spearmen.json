@@ -1,0 +1,26 @@
+{
+  "id": "levy-spearmen",
+  "name": "Levy Spearmen",
+  "class": "infantry",
+  "men": 160,
+  "hp": 1,
+  "attack": 3,
+  "charge": 2,
+  "armor": 2,
+  "speed": 2.6,
+  "runSpeed": 4.2,
+  "turnRate": 40,
+  "morale": 4,
+  "files": 32,
+  "minRanks": 2,
+  "maxRanks": 12,
+  "spacing": [
+    1.1,
+    1.3
+  ],
+  "shield": true,
+  "antiCavalry": 1.7,
+  "height": 1.7,
+  "icon": "spear",
+  "note": "Cheap line filler. Spear wall blunts cavalry charges from the front; breaks quickly."
+}

@@ -1,0 +1,30 @@
+{
+  "id": "archers",
+  "name": "Archers",
+  "class": "missile",
+  "men": 120,
+  "hp": 1,
+  "attack": 2,
+  "charge": 1,
+  "armor": 1,
+  "speed": 2.8,
+  "runSpeed": 4.6,
+  "turnRate": 45,
+  "morale": 5,
+  "range": 160,
+  "ammo": 28,
+  "accuracy": 0.055,
+  "reload": 4,
+  "fireArc": 120,
+  "files": 30,
+  "minRanks": 2,
+  "maxRanks": 10,
+  "spacing": [
+    1.3,
+    1.5
+  ],
+  "loose": true,
+  "height": 1.7,
+  "icon": "bow",
+  "note": "Long bamboo bows. Deadly against light horse, useless in melee."
+}

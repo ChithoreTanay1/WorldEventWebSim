@@ -1,0 +1,62 @@
+{
+  "id": "gupta-frontier-battle",
+  "name": "Battle at the River Frontier",
+  "era": "Invented engagement · Gupta era, c. 5th century CE",
+  "disclaimer": "This battle is invented. It is not a reconstruction of any recorded battle: sources for Gupta-era warfare are sparse. Army compositions are plausible, and every unit stat is an estimate.",
+  "briefing": "A nomad host has crossed into the frontier provinces. Its horse archers will try to bleed your line and lure your cavalry into a chase. Hold the centre with infantry, archers and elephants. Keep your lancers on the wings, and the general's guard in reserve, until the enemy horse overextends. Then strike its flank or rear.",
+  "seed": 1337,
+  "player": "gupta",
+  "terrain": {
+    "size": [1000, 600],
+    "hills": [
+      { "pos": [150, 300], "radius": 95, "height": 9 },
+      { "pos": [470, 105], "radius": 115, "height": 7 },
+      { "pos": [860, 330], "radius": 95, "height": 6 }
+    ],
+    "river": {
+      "points": [[-20, 562], [140, 542], [300, 556], [460, 532], [620, 549], [780, 533], [900, 548], [1020, 540]],
+      "width": 24,
+      "depth": 2.6,
+      "fords": [
+        { "pos": [460, 532], "radius": 32 }
+      ]
+    }
+  },
+  "sides": {
+    "gupta": {
+      "name": "Gupta Army",
+      "color": "#d08a2e",
+      "rearX": 0,
+      "units": [
+        { "type": "archers", "name": "Archers (Left)", "pos": [305, 260], "facing": 0 },
+        { "type": "archers", "name": "Archers (Right)", "pos": [305, 340], "facing": 0 },
+        { "type": "war-elephants", "name": "Elephants (Left)", "pos": [282, 280], "facing": 0 },
+        { "type": "war-elephants", "name": "Elephants (Right)", "pos": [282, 320], "facing": 0 },
+        { "type": "heavy-infantry", "name": "Swordsmen (Left)", "pos": [255, 278], "facing": 0 },
+        { "type": "heavy-infantry", "name": "Swordsmen (Right)", "pos": [255, 322], "facing": 0 },
+        { "type": "levy-spearmen", "name": "Spearmen (Left)", "pos": [255, 225], "facing": 0 },
+        { "type": "levy-spearmen", "name": "Spearmen (Right)", "pos": [255, 375], "facing": 0 },
+        { "type": "heavy-cavalry", "name": "Lancers (South Wing)", "pos": [250, 150], "facing": 0 },
+        { "type": "heavy-cavalry", "name": "Lancers (North Wing)", "pos": [250, 450], "facing": 0 },
+        { "type": "heavy-cavalry", "name": "General's Guard", "pos": [200, 300], "facing": 0, "men": 60, "general": true, "reserve": true }
+      ]
+    },
+    "invader": {
+      "name": "Nomad Host",
+      "color": "#5b7f9e",
+      "ai": true,
+      "rearX": 1000,
+      "units": [
+        { "type": "horse-archers", "name": "Horse Archers I", "pos": [640, 150], "facing": 180 },
+        { "type": "horse-archers", "name": "Horse Archers II", "pos": [640, 225], "facing": 180 },
+        { "type": "horse-archers", "name": "Horse Archers III", "pos": [640, 300], "facing": 180 },
+        { "type": "horse-archers", "name": "Horse Archers IV", "pos": [640, 375], "facing": 180 },
+        { "type": "horse-archers", "name": "Horse Archers V", "pos": [640, 450], "facing": 180 },
+        { "type": "skirmishers", "name": "Skirmish Screen", "pos": [595, 300], "facing": 180 },
+        { "type": "steppe-lancers", "name": "Heavy Horse (South)", "pos": [720, 190], "facing": 180, "reserve": true },
+        { "type": "steppe-lancers", "name": "Heavy Horse (North)", "pos": [720, 410], "facing": 180, "reserve": true },
+        { "type": "steppe-lancers", "name": "Khan's Guard", "pos": [770, 300], "facing": 180, "men": 60, "general": true }
+      ]
+    }
+  }
+}

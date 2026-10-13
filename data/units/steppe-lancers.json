@@ -1,0 +1,24 @@
+{
+  "id": "steppe-lancers",
+  "name": "Steppe Heavy Horse",
+  "class": "cavalry",
+  "men": 100,
+  "hp": 1.6,
+  "attack": 7,
+  "charge": 13,
+  "armor": 5,
+  "speed": 4.8,
+  "runSpeed": 10.5,
+  "turnRate": 75,
+  "morale": 7,
+  "files": 25,
+  "minRanks": 2,
+  "maxRanks": 8,
+  "spacing": [
+    2.0,
+    3.0
+  ],
+  "height": 2.3,
+  "icon": "cav-heavy",
+  "note": "The invaders' armoured nobles. Waits for a gap, then strikes."
+}
