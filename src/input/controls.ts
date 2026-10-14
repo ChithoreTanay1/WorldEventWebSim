@@ -10,7 +10,7 @@ import type { Order, OrderType, XZ } from '../sim/types';
 import type { Unit } from '../sim/unit';
 import type { View } from '../render/view';
 import { ORDER_COLORS, type OrderVisual } from '../render/overlay';
-import { planClickMove, planLine, roleRow, routeLanes, simplifyPath, type LineUnit, type Placement } from './formation';
+import { cleanStroke, planClickMove, planLine, roleRow, routeLanes, type LineUnit, type Placement } from './formation';
 
 export interface ControlHandlers {
   onSelection(ids: number[]): void;
@@ -322,18 +322,19 @@ export class Controls {
     if (d.mode === 'rotate') {
       this.preview = { rotate: { id: d.unit.id, facing: Math.atan2(last.z - d.unit.z, last.x - d.unit.x) } };
     } else if (d.mode === 'path') {
-      this.preview = { routes: this.curvedRoutes(d.points, [d.unit]) };
+      this.preview = { routes: this.curvedRoutes(cleanStroke(d.points, false), [d.unit]) };
     } else if (d.mode === 'route') {
-      this.preview = { routes: this.curvedRoutes(d.points, this.commandable()) };
+      this.preview = { routes: this.curvedRoutes(cleanStroke(d.points, false), this.commandable()) };
     } else {
+      // A formation line: no release hook, and a stroke drawn nearly straight is laid perfectly straight.
       const { fx, fz } = this.view.rig.groundAxes();
-      this.preview = { placements: planLine(d.points, this.commandable().map((u) => this.lineUnit(u)), { x: fx, z: fz }) };
+      this.preview = { placements: planLine(cleanStroke(d.points, true), this.commandable().map((u) => this.lineUnit(u)), { x: fx, z: fz }) };
     }
     // The stroke as drawn, faint under the planned curves, so a rounded-off corner reads as the unit's
     // turning circle rather than a glitch. A line-formation drag shows the curve units are laid along.
-    if (d.mode === 'line') this.view.overlay.setTrail(simplifyPath(d.points, 5), '#f4ecd4');
+    if (d.mode === 'line') this.view.overlay.setTrail(cleanStroke(d.points, true), '#f4ecd4');
     else if (d.mode === 'rotate') this.view.overlay.setTrail(null);
-    else this.view.overlay.setTrail(simplifyPath(d.points, 2), '#f4ecd4', 0.3, 0.45);
+    else this.view.overlay.setTrail(cleanStroke(d.points, false), '#f4ecd4', 0.3, 0.45);
   }
 
   /** What the drag in progress will do, for the cursor label. */
@@ -643,7 +644,17 @@ export class Controls {
       }
       for (const pl of this.preview.placements ?? []) {
         const u = b.unit(pl.id);
-        out.push({ now: [{ x: u.x, z: u.z }, { x: pl.x, z: pl.z }], later: [], color, ghost: ghostOf(u, pl.x, pl.z, pl.facing), arrow: false });
+        const slot = ghostOf(u, pl.x, pl.z, pl.facing);
+        if (b.phase === 'deployment') {
+          out.push({ now: [], later: [], color, ghost: slot, arrow: false });
+          continue;
+        }
+        // The route the unit will really walk to its place (its turning circle included), the ghost
+        // where this turn ends, and a faint outline of its place in the line.
+        let type = this.typeFor(u);
+        if (type === 'shoot') type = 'walk';
+        const path = planCurve(u, [{ x: pl.x, z: pl.z }], b.turnRadius(u, type), type === 'fallback');
+        out.push({ ...this.projectPath(u, { type, path, facing: pl.facing }, color), slot });
       }
       return out;
     }

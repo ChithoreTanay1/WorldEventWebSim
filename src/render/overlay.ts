@@ -27,6 +27,8 @@ export interface OrderVisual {
   ghost: { x: number; z: number; facing: number; frontage: number; depth: number } | null;
   /** Arrowhead at the end of `now` (move orders) or not (lock-on lines). */
   arrow: boolean;
+  /** Formation lines: the unit's final place, drawn as a faint outline. */
+  slot?: { x: number; z: number; facing: number; frontage: number; depth: number };
 }
 
 export const ORDER_COLORS: Record<string, string> = {
@@ -173,7 +175,10 @@ export class OrderOverlay {
   }
 
   private rebuildGhosts() {
-    const ghosts = this.items.filter((it) => it.ghost);
+    // End-of-turn ghosts (filled), then final places in a formation line (outline only, fainter).
+    const ghosts: { g: NonNullable<OrderVisual['ghost']>; color: string; fill: boolean }[] = [];
+    for (const it of this.items) if (it.ghost) ghosts.push({ g: it.ghost, color: it.color, fill: true });
+    for (const it of this.items) if (it.slot) ghosts.push({ g: it.slot, color: it.color, fill: false });
     if (ghosts.length > this.ghostCap) this.growGhosts(Math.max(ghosts.length, this.ghostCap * 2));
     const m = this.ghostBoxes.instanceMatrix.array as Float32Array;
     const c = this.ghostBoxes.instanceColor!.array as Float32Array;
@@ -183,14 +188,15 @@ export class OrderOverlay {
     m.fill(0);
     lc.fill(0);
     ghosts.forEach((it, i) => {
-      const g = it.ghost!;
+      const g = it.g;
       const y = this.heights.height(g.x, g.z) + 1;
       // Box rotated by -facing, scaled (depth, 2, frontage): as the unit block itself.
       const cs = Math.cos(g.facing), sn = -Math.sin(g.facing);
       const o = i * 16;
-      m[o] = cs * g.depth; m[o + 2] = -sn * g.depth;
-      m[o + 5] = 2;
-      m[o + 8] = sn * g.frontage; m[o + 10] = cs * g.frontage;
+      const fill = it.fill ? 1 : 0;
+      m[o] = cs * g.depth * fill; m[o + 2] = -sn * g.depth * fill;
+      m[o + 5] = 2 * fill;
+      m[o + 8] = sn * g.frontage * fill; m[o + 10] = cs * g.frontage * fill;
       m[o + 12] = g.x; m[o + 13] = y; m[o + 14] = g.z; m[o + 15] = 1;
       tmp.set(it.color);
       c.set([tmp.r, tmp.g, tmp.b], i * 3);
@@ -200,7 +206,7 @@ export class OrderOverlay {
         lp[q] = g.x + cs * lx + sn * lz;
         lp[q + 1] = y + ly;
         lp[q + 2] = g.z - sn * lx + cs * lz;
-        lc.set([tmp.r, tmp.g, tmp.b, 0.8], (i * per + v) * 4);
+        lc.set([tmp.r, tmp.g, tmp.b, it.fill ? 0.8 : 0.45], (i * per + v) * 4);
       }
     });
     this.ghostBoxes.instanceMatrix.needsUpdate = true;

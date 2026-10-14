@@ -62,6 +62,35 @@ export function simplifyPath(points: XZ[], spacing = 20): XZ[] {
   return out;
 }
 
+/**
+ * Tidy a freehand stroke: drop the hook a mouse makes on release (a short tail that turns sharply away
+ * from where the stroke was heading) and, if asked, snap a nearly straight stroke perfectly straight.
+ */
+export function cleanStroke(raw: XZ[], straighten: boolean): XZ[] {
+  const pts = simplifyPath(raw, 2);
+  if (pts.length < 3) return pts;
+  const L = pathLength(pts);
+  const a = pointAt(pts, L * 0.2).p, b = pointAt(pts, L * 0.85).p;
+  const dl = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+  const dx = (b.x - a.x) / dl, dz = (b.z - a.z) / dl;
+  const maxTrim = Math.max(6, L * 0.12);
+  let trimmed = 0;
+  while (pts.length > 2) {
+    const n = pts.length, p = pts[n - 2], q = pts[n - 1];
+    const seg = Math.hypot(q.x - p.x, q.z - p.z) || 1;
+    if (((q.x - p.x) * dx + (q.z - p.z) * dz) / seg > Math.cos((50 * Math.PI) / 180)) break;
+    if (trimmed + seg > maxTrim) break;
+    pts.pop();
+    trimmed += seg;
+  }
+  if (!straighten) return pts;
+  const s = pts[0], e = pts[pts.length - 1];
+  const cl = Math.hypot(e.x - s.x, e.z - s.z) || 1;
+  let dev = 0;
+  for (const p of pts) dev = Math.max(dev, Math.abs((p.x - s.x) * (e.z - s.z) - (p.z - s.z) * (e.x - s.x)) / cl);
+  return dev < Math.max(2.5, cl * 0.05) ? [s, e] : pts;
+}
+
 export function pathLength(path: XZ[]): number {
   let L = 0;
   for (let i = 1; i < path.length; i++) L += Math.hypot(path[i].x - path[i - 1].x, path[i].z - path[i - 1].z);
@@ -106,13 +135,22 @@ export function planLine(rawPath: XZ[], units: LineUnit[], forward: XZ): Placeme
   const rows = [...new Set(units.map((u) => u.row))].sort((a, b) => a - b);
   const out: Placement[] = [];
   let back = 0;
-  for (const row of rows) {
+  rows.forEach((row, ri) => {
     const inRow = units.filter((u) => u.row === row).sort((a, b) => a.x * dir.x + a.z * dir.z - (b.x * dir.x + b.z * dir.z));
     const width = inRow.reduce((s, u) => s + u.frontage, 0) + GAP * (inRow.length - 1);
-    // Spread a row over the whole line if it is long enough, otherwise centre it.
-    const spare = Math.max(0, L - width);
-    const gap = inRow.length > 1 ? GAP + spare / (inRow.length - 1) : 0;
-    let s = inRow.length > 1 ? Math.min(0, (L - width) / 2) : L / 2 - inRow[0].frontage / 2;
+    let gap: number, s: number;
+    if (ri === 0) {
+      // The front row spreads over the whole line if it is long enough, otherwise it is centred.
+      const spare = Math.max(0, L - width);
+      gap = inRow.length > 1 ? GAP + spare / (inRow.length - 1) : 0;
+      s = inRow.length > 1 ? Math.min(0, (L - width) / 2) : L / 2 - inRow[0].frontage / 2;
+    } else {
+      // Rows behind pack shoulder to shoulder, centred where those units already stand along the
+      // line, so a couple of elephants or a cavalry reserve don't get flung to opposite ends.
+      gap = GAP;
+      const centre = arcPosition(path, inRow.reduce((a, u) => a + u.x, 0) / inRow.length, inRow.reduce((a, u) => a + u.z, 0) / inRow.length);
+      s = width >= L ? (L - width) / 2 : Math.max(0, Math.min(L - width, centre - width / 2));
+    }
     const depth = Math.max(...inRow.map((u) => u.depth));
     for (const u of inRow) {
       const { p, t } = pointAt(path, s + u.frontage / 2);
@@ -122,9 +160,49 @@ export function planLine(rawPath: XZ[], units: LineUnit[], forward: XZ): Placeme
       out.push({ id: u.id, x: p.x - nx * off, z: p.z - nz * off, facing: Math.atan2(nz, nx) });
       s += u.frontage + gap;
     }
+    untangle(out.slice(out.length - inRow.length), inRow);
     back += depth + ROW_GAP;
-  }
+  });
   return out;
+}
+
+/**
+ * Within one row, swap the places of two units of the same width whenever that shortens their marches
+ * (least total distance, so two paths that cross are always swapped): no crossing on the way to the line.
+ */
+function untangle(places: Placement[], units: LineUnit[]) {
+  const byId = new Map(units.map((u) => [u.id, u]));
+  const cost = (u: LineUnit, p: Placement) => Math.hypot(u.x - p.x, u.z - p.z);
+  for (let pass = 0, swapped = true; swapped && pass < 8; pass++) {
+    swapped = false;
+    for (let i = 0; i < places.length; i++) {
+      for (let j = i + 1; j < places.length; j++) {
+        const a = byId.get(places[i].id)!, b = byId.get(places[j].id)!;
+        if (Math.abs(a.frontage - b.frontage) > 1 || Math.abs(a.depth - b.depth) > 1) continue;
+        if (cost(a, places[j]) + cost(b, places[i]) < cost(a, places[i]) + cost(b, places[j]) - 1e-6) {
+          const id = places[i].id;
+          places[i].id = places[j].id;
+          places[j].id = id;
+          swapped = true;
+        }
+      }
+    }
+  }
+}
+
+/** Arc length along `path` of the point on it nearest to (x, z). */
+function arcPosition(path: XZ[], x: number, z: number): number {
+  let best = 0, bd = Infinity, acc = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i];
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const len = Math.hypot(dx, dz);
+    const t = len ? Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / (len * len))) : 0;
+    const d = Math.hypot(a.x + dx * t - x, a.z + dz * t - z);
+    if (d < bd) (bd = d), (best = acc + t * len);
+    acc += len;
+  }
+  return best;
 }
 
 /** Single right-click with several units: keep them side by side, centred on the click, facing the way they travel. */
