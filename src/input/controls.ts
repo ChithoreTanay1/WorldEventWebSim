@@ -5,6 +5,7 @@
 // R T F G formations, Alt/Ctrl/Shift + 1-9 control groups. Camera: WASD/arrows/edges, wheel, Q/E,
 // middle-drag. Orders are planned while time is stopped; Space/Enter ends the turn.
 import type { Battle } from '../sim/battle';
+import { planCurve } from '../sim/pathing';
 import type { Order, OrderType, XZ } from '../sim/types';
 import type { Unit } from '../sim/unit';
 import type { View } from '../render/view';
@@ -43,6 +44,7 @@ interface Drag {
 }
 
 const DRAG_PX = 6;
+const NO_VISUALS: OrderVisual[] = [];
 const MIN_LINE = 8;
 
 export class Controls {
@@ -58,6 +60,14 @@ export class Controls {
   private preview: { placements?: Placement[]; rotate?: { id: number; facing: number }; routes?: { id: number; path: XZ[] }[] } | null = null;
   private mouse = { x: -1, y: -1, inside: false };
   private readonly box: HTMLDivElement;
+  private readonly abort = new AbortController();
+  /** New pointer samples since the preview was last planned (replanned once per frame, not per event). */
+  private previewDirty = false;
+  private visuals: OrderVisual[] = NO_VISUALS;
+  private previewVisuals: OrderVisual[] | null = null;
+  private lastVisualsKey = NaN;
+  private readonly orderIds = new WeakMap<object, number>();
+  private nextOrderId = 1;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -68,21 +78,28 @@ export class Controls {
     this.box = document.createElement('div');
     this.box.className = 'box-select';
     document.body.append(this.box);
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-    canvas.addEventListener('pointerdown', (e) => this.down(e));
-    window.addEventListener('pointermove', (e) => this.move(e));
-    window.addEventListener('pointerup', (e) => this.up(e));
-    canvas.addEventListener('dblclick', (e) => this.dblclick(e));
-    canvas.addEventListener('pointerenter', () => (this.mouse.inside = true));
-    canvas.addEventListener('pointerleave', () => (this.mouse.inside = false));
+    const { signal } = this.abort;
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault(), { signal });
+    canvas.addEventListener('pointerdown', (e) => this.down(e), { signal });
+    window.addEventListener('pointermove', (e) => this.move(e), { signal });
+    window.addEventListener('pointerup', (e) => this.up(e), { signal });
+    canvas.addEventListener('dblclick', (e) => this.dblclick(e), { signal });
+    canvas.addEventListener('pointerenter', () => (this.mouse.inside = true), { signal });
+    canvas.addEventListener('pointerleave', () => (this.mouse.inside = false), { signal });
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
       this.view.rig.zoom(Math.exp(e.deltaY * 0.0012));
-    }, { passive: false });
-    window.addEventListener('keydown', (e) => this.keydown(e));
-    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('blur', () => this.keys.clear());
+    }, { passive: false, signal });
+    window.addEventListener('keydown', (e) => this.keydown(e), { signal });
+    window.addEventListener('keyup', (e) => this.keys.delete(e.code), { signal });
+    window.addEventListener('blur', () => this.keys.clear(), { signal });
     this.initialGroups();
+  }
+
+  /** Remove every listener and DOM node this instance added (leaving a battle for the campaign map). */
+  dispose() {
+    this.abort.abort();
+    this.box.remove();
   }
 
   setBattle(b: Battle) {
@@ -154,7 +171,52 @@ export class Controls {
     this.ui.onSelection([...this.selection]);
   }
 
+  /**
+   * Order visuals, rebuilt only when something they show changes: the drag preview, or the selection's
+   * orders and positions (a cheap numeric key). Otherwise the overlay gets the same array back and
+   * skips its rebuild too.
+   */
+  private cachedVisuals(): OrderVisual[] {
+    if (this.preview) return (this.previewVisuals ??= this.orderVisuals());
+    const k = this.visualsKey();
+    if (k !== this.lastVisualsKey) {
+      this.lastVisualsKey = k;
+      this.visuals = this.orderVisuals();
+    }
+    return this.visuals;
+  }
+
+  private orderId(o: object): number {
+    let id = this.orderIds.get(o);
+    if (id === undefined) this.orderIds.set(o, (id = this.nextOrderId++));
+    return id;
+  }
+
+  private visualsKey(): number {
+    const b = this.battle;
+    let h = b.turn * 31 + (b.phase === 'planning' ? 1 : b.phase === 'ended' ? 2 : 3);
+    const mix = (v: number) => (h = (Math.imul(h ^ Math.round(v * 256), 16777619) + 0x9e3779b9) | 0);
+    for (const id of this.selection) {
+      const u = b.unit(id);
+      const o = u.order;
+      mix(id);
+      mix(u.x);
+      mix(u.z);
+      mix(u.facing);
+      if (!o) continue;
+      mix(this.orderId(o));
+      mix(o.path?.length ?? -1);
+      const t = o.target ?? o.follow;
+      if (t !== undefined) {
+        mix(b.unit(t).x);
+        mix(b.unit(t).z);
+      }
+    }
+    return h;
+  }
+
   private cancelDrag() {
+    this.previewVisuals = null;
     this.drag = null;
     this.preview = null;
     this.box.style.display = 'none';
@@ -210,21 +272,38 @@ export class Controls {
     if (d.button === 1 || d.mode === 'camera') {
       this.view.rig.rotate((e.clientX - d.lastX) * 0.006, (e.clientY - d.lastY) * 0.004);
     } else if (d.button === 0 && d.mode === 'route') {
-      const g = this.view.pickGround(e.clientX, e.clientY);
-      const last = d.points[d.points.length - 1];
-      if (g && (!last || Math.hypot(g.x - last.x, g.z - last.z) > 1.5)) d.points.push(g);
-      this.updatePreview(d);
+      this.sample(d, e);
+      this.previewDirty = true;
     } else if (d.button === 0 && d.moved) {
       const x = Math.min(d.startX, e.clientX), y = Math.min(d.startY, e.clientY);
       Object.assign(this.box.style, { display: 'block', left: `${x}px`, top: `${y}px`, width: `${Math.abs(e.clientX - d.startX)}px`, height: `${Math.abs(e.clientY - d.startY)}px` });
     } else if (d.button === 2 && d.mode && this.planning) {
-      const g = this.view.pickGround(e.clientX, e.clientY);
-      const last = d.points[d.points.length - 1];
-      if (g && (!last || Math.hypot(g.x - last.x, g.z - last.z) > 1.5)) d.points.push(g);
-      this.updatePreview(d);
+      this.sample(d, e);
+      this.previewDirty = true;
     }
     d.lastX = e.clientX;
     d.lastY = e.clientY;
+  }
+
+  /** Add the ground under every pointer sample since the last event (coalesced events), not just the latest. */
+  private sample(d: Drag, e: PointerEvent) {
+    const events = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+    for (const ev of events.length ? events : [e]) {
+      const g = this.view.pickGround(ev.clientX, ev.clientY);
+      const last = d.points[d.points.length - 1];
+      if (g && (!last || Math.hypot(g.x - last.x, g.z - last.z) > 0.75)) d.points.push(g);
+    }
+  }
+
+  /** Each unit's lane of a drawn route, turned into the curve it can actually trace (smart curved movement). */
+  private curvedRoutes(raw: XZ[], units: Unit[]): { id: number; path: XZ[] }[] {
+    const deploy = this.battle.phase === 'deployment';
+    return routeLanes(raw, units).map((r) => {
+      const u = this.battle.unit(r.id);
+      if (deploy) return { id: r.id, path: r.path.slice(1) };
+      const type = this.typeFor(u);
+      return { id: r.id, path: planCurve(u, r.path, this.battle.turnRadius(u, type), type === 'fallback') };
+    });
   }
 
   private dragLength(p: XZ[]): number {
@@ -234,6 +313,7 @@ export class Controls {
   }
 
   private updatePreview(d: Drag) {
+    this.previewVisuals = null;
     if (d.points.length < 2 || this.dragLength(d.points) < MIN_LINE || !d.unit) {
       this.preview = null;
       return;
@@ -242,17 +322,18 @@ export class Controls {
     if (d.mode === 'rotate') {
       this.preview = { rotate: { id: d.unit.id, facing: Math.atan2(last.z - d.unit.z, last.x - d.unit.x) } };
     } else if (d.mode === 'path') {
-      this.preview = { routes: routeLanes(d.points, [d.unit]) };
+      this.preview = { routes: this.curvedRoutes(d.points, [d.unit]) };
     } else if (d.mode === 'route') {
-      this.preview = { routes: routeLanes(d.points, this.commandable()) };
+      this.preview = { routes: this.curvedRoutes(d.points, this.commandable()) };
     } else {
       const { fx, fz } = this.view.rig.groundAxes();
       this.preview = { placements: planLine(d.points, this.commandable().map((u) => this.lineUnit(u)), { x: fx, z: fz }) };
     }
-    // The drawn curve itself, in the colour of the order it will become.
-    // Routes and paths are drawn by their (smoothed) order preview; a line-formation drag also shows
-    // the de-jittered curve the units are being laid along.
-    this.view.overlay.setTrail(d.mode === 'line' ? simplifyPath(d.points, 5) : null, '#f4ecd4');
+    // The stroke as drawn, faint under the planned curves, so a rounded-off corner reads as the unit's
+    // turning circle rather than a glitch. A line-formation drag shows the curve units are laid along.
+    if (d.mode === 'line') this.view.overlay.setTrail(simplifyPath(d.points, 5), '#f4ecd4');
+    else if (d.mode === 'rotate') this.view.overlay.setTrail(null);
+    else this.view.overlay.setTrail(simplifyPath(d.points, 2), '#f4ecd4', 0.3, 0.45);
   }
 
   /** What the drag in progress will do, for the cursor label. */
@@ -275,6 +356,10 @@ export class Controls {
   private up(e: PointerEvent) {
     const d = this.drag;
     if (!d || e.button !== d.button) return;
+    if (this.previewDirty) {
+      this.updatePreview(d);
+      this.previewDirty = false;
+    }
     if (d.button === 0) {
       if (d.mode === 'camera') {
         // camera tilt only
@@ -342,9 +427,11 @@ export class Controls {
       return;
     }
     const u = b.unit(id);
-    const type = this.typeFor(u);
+    let type = this.typeFor(u);
     // Shoot needs a target; a ground order with Shoot selected walks instead.
-    b.setOrder(id, { type: type === 'shoot' ? 'walk' : type, path: path ?? [{ x, z }], facing });
+    if (type === 'shoot') type = 'walk';
+    // A plain destination still gets a curve the unit can trace, ending in place to turn to `facing`.
+    b.setOrder(id, { type, path: path ?? planCurve(u, [{ x, z }], b.turnRadius(u, type), type === 'fallback'), facing });
   }
 
   private commitPreview() {
@@ -356,11 +443,13 @@ export class Controls {
       } else this.battle.setOrder(p.rotate.id, { type: 'rotate', facing: p.rotate.facing });
     } else if (p.routes) {
       for (const r of p.routes) {
+        const u = this.battle.unit(r.id);
         const n = r.path.length;
-        if (n < 2) continue;
-        const facing = Math.atan2(r.path[n - 1].z - r.path[n - 2].z, r.path[n - 1].x - r.path[n - 2].x);
+        if (n < 1) continue;
+        const prev = n > 1 ? r.path[n - 2] : u;
         const end = r.path[n - 1];
-        this.place(r.id, end.x, end.z, this.typeFor(this.battle.unit(r.id)) === 'fallback' ? facing + Math.PI : facing, r.path.slice(1));
+        const facing = Math.atan2(end.z - prev.z, end.x - prev.x);
+        this.place(r.id, end.x, end.z, this.typeFor(u) === 'fallback' ? facing + Math.PI : facing, r.path);
       }
     } else if (p.placements) {
       for (const pl of p.placements) this.place(pl.id, pl.x, pl.z, pl.facing);
@@ -510,6 +599,8 @@ export class Controls {
   // ------------------------------------------------------------ per frame
 
   update(dt: number) {
+    if (this.previewDirty && this.drag) this.updatePreview(this.drag);
+    this.previewDirty = false;
     const k = (c: string) => this.keys.has(c);
     const speed = 420 * dt;
     let f = 0, r = 0;
@@ -529,7 +620,7 @@ export class Controls {
     if (k('KeyE')) this.view.rig.rotate(1.6 * dt, 0);
     this.view.units.setSelected(this.selection);
     this.view.units.setHover(this.hoverId);
-    this.view.overlay.show(this.planning || this.battle.phase === 'ended' ? this.orderVisuals() : []);
+    this.view.overlay.show(this.planning || this.battle.phase === 'ended' ? this.cachedVisuals() : NO_VISUALS);
   }
 
   /** Order arrows for the selection (or preview): solid for this turn, faded beyond, ghost at turn's end. */
@@ -545,8 +636,8 @@ export class Controls {
       }
       for (const r of this.preview.routes ?? []) {
         const u = b.unit(r.id);
-        if (b.phase === 'deployment') {
-          const end = r.path[r.path.length - 1];
+        if (b.phase === 'deployment' || !r.path.length) {
+          const end = r.path[r.path.length - 1] ?? u;
           out.push({ now: [], later: [], color, ghost: ghostOf(u, end.x, end.z, u.facing), arrow: false });
         } else out.push(this.projectPath(u, { type: this.typeFor(u), path: r.path }, color));
       }
@@ -570,29 +661,16 @@ export class Controls {
     return out;
   }
 
+  /**
+   * The order as it will play out: this turn's track comes from the battle's own steering law (turning
+   * circles, pivots, about-faces), so the ghost stands where the unit will end the turn and faces the
+   * way it will face. Whatever is left of the path is the faded continuation.
+   */
   private projectPath(u: Unit, o: Order, color: string): OrderVisual {
-    const pts = [{ x: u.x, z: u.z }, ...(o.path ?? [])];
-    let budget = this.battle.reach(u, o.type);
-    const now: XZ[] = [pts[0]];
-    let i = 1;
-    let heading = u.facing;
-    for (; i < pts.length; i++) {
-      const a = now[now.length - 1], bb = pts[i];
-      const seg = Math.hypot(bb.x - a.x, bb.z - a.z);
-      heading = Math.atan2(bb.z - a.z, bb.x - a.x);
-      if (seg <= budget) {
-        now.push(bb);
-        budget -= seg;
-      } else {
-        now.push({ x: a.x + ((bb.x - a.x) * budget) / seg, z: a.z + ((bb.z - a.z) * budget) / seg });
-        break;
-      }
-    }
-    const done = i >= pts.length;
-    const later = done ? [] : [now[now.length - 1], ...pts.slice(i)];
-    const end = now[now.length - 1];
-    const back = o.type === 'fallback';
-    const facing = done && o.facing !== undefined ? o.facing : back ? heading + Math.PI : heading;
-    return { now, later, color, ghost: { x: end.x, z: end.z, facing, frontage: u.frontage, depth: u.depth }, arrow: !back };
+    const path = o.path ?? [];
+    const pv = this.battle.previewOrder(u, o);
+    const later = pv.done ? [] : [{ x: pv.end.x, z: pv.end.z }, ...path.slice(pv.next)];
+    const e = pv.end;
+    return { now: pv.track, later, color, ghost: { x: e.x, z: e.z, facing: e.facing, frontage: u.frontage, depth: u.depth }, arrow: o.type !== 'fallback' };
   }
 }

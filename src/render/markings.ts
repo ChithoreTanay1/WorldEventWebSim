@@ -40,7 +40,7 @@ export class Markings {
     this.zone.renderOrder = 4;
     this.root.add(this.zone);
     for (let i = 0; i < 3; i++) {
-      const m = new Mesh(new BufferGeometry(), new MeshBasicMaterial({ color: ['#e0503a', '#e8c040', '#ffffff'][i], transparent: true, opacity: 0.16, side: DoubleSide, depthWrite: false }));
+      const m = new Mesh(new BufferGeometry(), new MeshBasicMaterial({ color: ['#e0503a', '#e8c040', '#ffffff'][i], transparent: true, opacity: 0.16, side: DoubleSide, depthWrite: false, forceSinglePass: true }));
       m.renderOrder = 3;
       this.fan.push(m);
       this.root.add(m);

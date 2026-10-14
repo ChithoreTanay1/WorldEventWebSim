@@ -32,6 +32,8 @@ export interface HudHandlers {
   setSpeed(i: number): void;
   restart(): void;
   select(ids: number[]): void;
+  /** Campaign battles: leave the field and carry the result back to the map. */
+  exit?(): void;
 }
 
 export class Hud {
@@ -461,10 +463,12 @@ export class Hud {
     const r = b.result!;
     const won = r.winner === b.player;
     const title = r.winner === null ? 'Tie' : won ? 'Victory' : 'Defeat';
-    const again = h('button', 'btn btn-primary', 'Fight again');
+    const exit = this.on.exit;
+    const again = h('button', 'btn btn-primary', exit ? 'Return to the campaign map' : 'Fight again');
     again.addEventListener('click', () => {
       this.close();
-      this.on.restart();
+      if (exit) exit();
+      else this.on.restart();
     });
     const look = h('button', 'btn', 'View the field');
     look.addEventListener('click', () => this.close());

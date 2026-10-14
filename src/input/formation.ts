@@ -1,6 +1,7 @@
 // Draw-the-line maths (pure, unit tested). Following the Lines of Battle wiki: dragging with several
 // units lays the selection along the line, stacked front to back by role (skirmishers, then lines,
 // then other infantry, then cavalry); facing comes from the line's angle.
+import { planCurve } from '../sim/pathing';
 import type { XZ } from '../sim/types';
 
 export type { XZ };
@@ -155,22 +156,31 @@ export function roleRow(category: string, formation: string): number {
 
 /**
  * Give each unit of a group its own copy of a drawn route, shifted sideways by the unit's offset from
- * the route's start, so a group follows a curve in parallel lanes instead of piling onto one line.
+ * where the drag started, so a group follows a curve in parallel lanes instead of piling onto one line.
+ * The shared route is first rounded to at least the group's half-width: a wide group wheels round a
+ * corner, and no lane can fold back on itself.
  */
 export function routeLanes(rawPath: XZ[], units: { id: number; x: number; z: number }[]): { id: number; path: XZ[] }[] {
   // Drop mouse jitter first (keep a point every ~5 m), then round the curve through what's left.
-  const path = smoothPath(simplifyPath(rawPath, 5), 3);
+  let path = smoothPath(simplifyPath(rawPath, 5), 3);
   if (path.length < 2) return units.map((u) => ({ id: u.id, path }));
+  const origin = path[0];
+  const t0 = { x: path[1].x - origin.x, z: path[1].z - origin.z };
+  const l0 = Math.hypot(t0.x, t0.z) || 1;
+  const n0 = { x: -t0.z / l0, z: t0.x / l0 };
+  const offs = units.map((u) => (units.length === 1 ? 0 : (u.x - origin.x) * n0.x + (u.z - origin.z) * n0.z));
+  const wide = Math.max(0, ...offs.map(Math.abs));
+  if (wide > 0) {
+    const curve = planCurve({ x: origin.x, z: origin.z, facing: Math.atan2(t0.z, t0.x) }, path, wide + 8);
+    path = [origin, ...curve];
+  }
   const normalAt = (i: number) => {
     const a = path[Math.max(0, i - 1)], b = path[Math.min(path.length - 1, i + 1)];
     const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
     return { x: -(b.z - a.z) / l, z: (b.x - a.x) / l };
   };
-  const n0 = normalAt(0);
-  const cx = units.reduce((s, u) => s + u.x, 0) / units.length;
-  const cz = units.reduce((s, u) => s + u.z, 0) / units.length;
-  return units.map((u) => {
-    const off = units.length === 1 ? 0 : (u.x - cx) * n0.x + (u.z - cz) * n0.z;
+  return units.map((u, ui) => {
+    const off = offs[ui];
     const lane = path.map((p, i) => ({ x: p.x + normalAt(i).x * off, z: p.z + normalAt(i).z * off }));
     // Join each lane where its own unit stands: drop leading points it has already passed, so the
     // route doesn't double back to the drag's starting line.

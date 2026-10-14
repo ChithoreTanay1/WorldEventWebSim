@@ -13,6 +13,10 @@ npm test        # rules, formation, data and balance tests
 npm run build   # static build in dist/ (GitHub Pages / Netlify)
 ```
 
+The game opens on the **campaign map** (North India, 455 CE): march armies between towns in simultaneous turns, recruit (10 slots per town, every unit ready next turn), split and merge armies. When armies meet, *Take command* dives the camera into a generated battlefield and casualties carry back to the map. `?mode=battle` opens the standalone battle.
+
+**Performance:** add `?perf` to the URL (or press F3) for an FPS / frame-time / draw-call overlay; `window.__perf.report()` gives CPU time per section, GPU time, draw calls and allocation rate. See [PERFORMANCE.md](PERFORMANCE.md) for the 60 FPS work and its numbers.
+
 ## How a battle plays
 
 1. **Deployment turn.** Drag units into place inside your zone (they move instantly) and set formations. *Begin battle* reveals two neutral hills between the armies.
@@ -95,5 +99,8 @@ src/render   Three.js: terrain, unit blocks + instanced soldiers (from recorded 
              markings (objectives, range fan, org radius, deployment zone), arrow volleys
 src/input    controls, draw-the-line placement maths
 src/ui       HUD
+src/campaign campaign map: geography, armies and turns, AI, recruiting, battle generation (toScenario),
+             map renderer, HUD and the mode that hands off to a BattleSession
 data/units       unit types        data/formations  formation postures       data/scenarios  battles
+data/campaign    campaign maps (towns, roads, rivers, armies, reinforcements)
 ```

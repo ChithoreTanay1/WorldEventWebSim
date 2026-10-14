@@ -106,14 +106,26 @@ export class Unit implements Frame {
     return this.routing ? 'dispersed' : this.pending?.to ?? this.formation;
   }
 
-  get footprint(): [number, number] {
-    const f = this.type.formations[this.shapeFormation] ?? this.type.formations[this.type.defaultFormation];
-    const s = Math.sqrt(this.strength);
-    if (this.routing) {
-      const base = this.type.formations[this.type.defaultFormation];
-      return [base[0] * 1.2 * s, Math.max(base[1] * 1.6, 16) * s];
+  /** Footprint cache: it only changes with the shape formation (strength is fixed). Read-only to callers. */
+  private readonly fp: [number, number] = [0, 0];
+  private fpShape: string | null = null;
+
+  get footprint(): readonly [number, number] {
+    const shape = this.shapeFormation;
+    if (shape !== this.fpShape) {
+      this.fpShape = shape;
+      const s = Math.sqrt(this.strength);
+      if (this.routing) {
+        const base = this.type.formations[this.type.defaultFormation];
+        this.fp[0] = base[0] * 1.2 * s;
+        this.fp[1] = Math.max(base[1] * 1.6, 16) * s;
+      } else {
+        const f = this.type.formations[shape] ?? this.type.formations[this.type.defaultFormation];
+        this.fp[0] = f[0] * s;
+        this.fp[1] = f[1] * s;
+      }
     }
-    return [f[0] * s, f[1] * s];
+    return this.fp;
   }
 
   get frontage(): number {
@@ -125,8 +137,8 @@ export class Unit implements Frame {
   }
 
   get radius(): number {
-    const [w, d] = this.footprint;
-    return Math.hypot(w, d) / 2;
+    const f = this.footprint;
+    return Math.hypot(f[0], f[1]) / 2;
   }
 
   get hpFrac(): number {

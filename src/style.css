@@ -212,3 +212,57 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font-size: 12px; color: var(--text); background: rgba(20, 17, 12, 0.72); padding: 4px 12px; border-radius: 12px; pointer-events: none;
 }
 @media (max-width: 1300px) { .context-hint { display: none; } }
+
+/* campaign map */
+.battle-root, .campaign-root { position: absolute; inset: 0; }
+.campaign-root { pointer-events: none; }
+.campaign-root > * { pointer-events: auto; }
+.campaign-root > .camp-labels, .campaign-root > .tooltip, .campaign-root > .camp-fade, .campaign-root > .camp-hint { pointer-events: none; }
+.camp-labels { position: absolute; inset: 0; overflow: hidden; }
+.camp-town {
+  position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 5px; padding: 1px 7px 1px 5px; white-space: nowrap;
+  font-family: var(--serif); font-size: 12px; color: #f6efdc; background: rgba(28, 24, 18, 0.72); border-radius: 3px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.camp-town.capital { font-size: 14px; color: var(--gold); border: 1px solid rgba(217, 178, 106, 0.6); }
+.camp-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.6); flex: none; }
+.camp-army {
+  position: absolute; left: 0; top: 0; min-width: 20px; padding: 0 5px; text-align: center; font-size: 11px; font-weight: 600;
+  font-variant-numeric: tabular-nums; color: #f6efdc; background: rgba(28, 24, 18, 0.85); border: 2px solid; border-radius: 9px;
+}
+.camp-army.sel { background: #7a5d2a; }
+.camp-fade { position: fixed; inset: 0; background: #0d0b08; opacity: 0; pointer-events: none; z-index: 50; }
+.camp-card { width: 300px; }
+.camp-units { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
+.camp-unit { display: flex; gap: 7px; align-items: center; }
+.camp-unit-icon { width: 26px; height: 26px; flex: none; }
+.camp-unit-body { flex: 1; min-width: 0; }
+.camp-unit-body .army-row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.camp-hint { bottom: 12px; }
+.camp-army-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; font-size: 13px; }
+.camp-odds { height: 10px; margin-top: 4px; }
+.camp-odds-label { margin-top: 12px; }
+.end-turn:disabled { opacity: 0.5; cursor: default; }
+.camp-card .card-line b { text-transform: none; }
+.camp-unit.pickable { cursor: pointer; border-radius: 3px; padding: 1px 3px; margin: 0 -3px; }
+.camp-unit.pickable:hover { background: rgba(255, 255, 255, 0.05); }
+.camp-unit.picked { background: rgba(217, 178, 106, 0.18); outline: 1px solid var(--gold); }
+.camp-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.camp-actions .btn { font-size: 12px; padding: 4px 8px; }
+.camp-sub-title { margin: 12px 0 5px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--gold); }
+.camp-recruit { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.camp-recruit-btn { display: flex; align-items: center; gap: 6px; padding: 3px 6px; font-size: 12px; text-align: left; }
+.camp-recruit-btn .camp-unit-icon { width: 22px; height: 22px; }
+.camp-queued { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; font-size: 12px; color: var(--good); }
+.camp-queued span { flex: 1; }
+.camp-queued .btn { font-size: 11px; padding: 2px 8px; }
+.camp-good { color: var(--good) !important; }
+.camp-card { max-height: calc(100% - 70px); }
+.camp-town.recruiting::after { content: '+1'; margin-left: 3px; font-family: var(--ui); font-size: 10px; font-weight: 700; color: var(--good); }
+.camp-town.recruiting::after { content: attr(data-rec); }
+.camp-slots { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; margin-bottom: 6px; }
+.camp-slot { aspect-ratio: 1; padding: 0; border: 1px dashed var(--edge); border-radius: 3px; background: rgba(0, 0, 0, 0.25); display: grid; place-items: center; }
+.camp-slot.filled { border-style: solid; border-color: var(--gold); background: rgba(217, 178, 106, 0.12); }
+.camp-slot.filled:hover:not(:disabled) { border-color: var(--bad); }
+.camp-slot .camp-unit-icon { width: 80%; height: 80%; }
+.camp-slot:disabled { cursor: default; }

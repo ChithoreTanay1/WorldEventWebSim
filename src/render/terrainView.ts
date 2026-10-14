@@ -6,13 +6,14 @@ import {
 } from 'three';
 import { Rng } from '../sim/rng';
 import { WATER_LEVEL, type Terrain } from '../sim/terrain';
+import type { HeightCache } from './heightCache';
 
-const CELL = 4;
 
-export function buildTerrain(terrain: Terrain): Group {
+export function buildTerrain(heights: HeightCache): Group {
+  const terrain = heights.terrain;
   const group = new Group();
-  const nx = Math.round(terrain.width / CELL);
-  const nz = Math.round(terrain.depth / CELL);
+  const nx = heights.nx;
+  const nz = heights.nz;
   const pos = new Float32Array((nx + 1) * (nz + 1) * 3);
   const col = new Float32Array((nx + 1) * (nz + 1) * 3);
   const grass = new Color('#7b8a48'), dry = new Color('#b19e62'), lush = new Color('#5e7a3c'), mud = new Color('#6f6446'), sand = new Color('#a89670');
@@ -23,7 +24,7 @@ export function buildTerrain(terrain: Terrain): Group {
     for (let ix = 0; ix <= nx; ix++) {
       const x = (ix / nx) * terrain.width;
       const z = (iz / nz) * terrain.depth;
-      const h = terrain.height(x, z);
+      const h = heights.at(ix, iz);
       pos[i] = x;
       pos[i + 1] = h;
       pos[i + 2] = z;
@@ -85,11 +86,11 @@ export function buildTerrain(terrain: Terrain): Group {
     }
   }
 
-  group.add(buildTrees(terrain));
+  group.add(buildTrees(terrain, heights));
   return group;
 }
 
-function buildTrees(terrain: Terrain): InstancedMesh {
+function buildTrees(terrain: Terrain, heights: HeightCache): InstancedMesh {
   const rng = new Rng(4242);
   const spots: [number, number, number][] = [];
   const half = (terrain.river?.width ?? 0) / 2;
@@ -110,7 +111,7 @@ function buildTrees(terrain: Terrain): InstancedMesh {
   const mesh = new InstancedMesh(geo, new MeshLambertMaterial({ color: '#58733a', flatShading: true }), spots.length);
   const m = new Matrix4();
   spots.forEach(([x, z, s], k) => {
-    const y = terrain.inside(x, z) ? terrain.height(x, z) : -0.15;
+    const y = heights.height(x, z);
     m.makeScale(s, s * rng.range(0.8, 1.3), s).setPosition(x, y, z);
     mesh.setMatrixAt(k, m);
     mesh.setColorAt(k, new Color('#58733a').offsetHSL(rng.range(-0.02, 0.02), 0, rng.range(-0.06, 0.05)));

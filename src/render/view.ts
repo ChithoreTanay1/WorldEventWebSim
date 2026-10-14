@@ -1,4 +1,5 @@
 // Scene composition: renderer, lights, terrain, units, order overlay and effects.
+import { createRenderer, gpuTimer } from './renderer';
 import { Color, DirectionalLight, Fog, HemisphereLight, Scene, Vector3, WebGLRenderer } from 'three';
 import type { Battle, UnitSnap } from '../sim/battle';
 import type { Volley } from '../sim/types';
@@ -9,6 +10,8 @@ import { Effects } from './effects';
 import { OrderOverlay } from './overlay';
 import { buildTerrain } from './terrainView';
 import { UnitLayer } from './unitLayer';
+import { HeightCache } from './heightCache';
+import { perf } from '../perf';
 
 const SKY = '#c3c9c4';
 
@@ -17,25 +20,26 @@ export class View {
   readonly scene = new Scene();
   readonly rig: CameraRig;
   units: UnitLayer;
+  heights: HeightCache;
   readonly overlay: OrderOverlay;
   effects: Effects;
   markings: Markings;
   private readonly v = new Vector3();
 
   constructor(readonly canvas: HTMLCanvasElement, private battle: Battle) {
-    this.renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    this.renderer = createRenderer(canvas);
     this.scene.background = new Color(SKY);
     this.scene.fog = new Fog(SKY, 900, 2600);
     this.scene.add(new HemisphereLight('#e4ecf2', '#6a5b3c', 1.1));
     const sun = new DirectionalLight('#fff0d6', 1.7);
     sun.position.set(-300, 500, 200);
     this.scene.add(sun);
-    this.scene.add(buildTerrain(battle.terrain));
+    this.heights = new HeightCache(battle.terrain);
+    this.scene.add(buildTerrain(this.heights));
     this.rig = new CameraRig(battle.terrain, 1);
-    this.units = new UnitLayer(battle);
+    this.units = new UnitLayer(battle, this.heights);
     this.scene.add(this.units.root);
-    this.overlay = new OrderOverlay(battle.terrain);
+    this.overlay = new OrderOverlay(this.heights);
     this.scene.add(this.overlay.root);
     this.effects = new Effects(battle.terrain);
     this.scene.add(this.effects.mesh);
@@ -48,7 +52,7 @@ export class View {
   setBattle(battle: Battle) {
     this.battle = battle;
     this.units.dispose();
-    this.units = new UnitLayer(battle);
+    this.units = new UnitLayer(battle, this.heights);
     this.scene.add(this.units.root);
     this.scene.remove(this.effects.mesh);
     this.effects = new Effects(battle.terrain);
@@ -57,6 +61,12 @@ export class View {
     this.markings = new Markings(battle);
     this.scene.add(this.markings.root);
     this.overlay.show([]);
+  }
+
+  dispose() {
+    this.units.dispose();
+    this.renderer.dispose();
+    this.renderer.forceContextLoss();
   }
 
   resize() {
@@ -70,12 +80,18 @@ export class View {
   /** Render the interpolation between two frames. */
   frame(a: UnitSnap[], b: UnitSnap[], alpha: number, dt: number, time: number, selected: Unit[]) {
     const f = this.rig.follow !== null ? this.battle.unit(this.rig.follow) : null;
+    let t = performance.now();
     this.rig.update(dt, f && f.alive ? { x: f.x, z: f.z } : null);
     this.effects.update(dt);
     this.units.update(a, b, alpha, time, this.rig.smoothedDistance);
     this.overlay.setCameraDistance(this.rig.smoothedDistance);
     this.markings.update(selected, time);
+    perf.add('units', performance.now() - t);
+    t = performance.now();
+    gpuTimer.begin(this.renderer);
     this.renderer.render(this.scene, this.rig.camera);
+    gpuTimer.end();
+    perf.add('render', performance.now() - t);
   }
 
   spawnVolleys(volleys: Volley[]) {

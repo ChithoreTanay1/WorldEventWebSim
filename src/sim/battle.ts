@@ -14,6 +14,7 @@ import {
 import {
   angleDiff, bearingFrom, nearestPoint, obbOverlap, overlapFraction, segmentHitsBox, toWorld, turnToward, wrapAngle,
 } from './geometry';
+import { ABOUT_FACE, ARRIVE, previewMove, steerStep, turnRadius, type MovePreview } from './pathing';
 import { Rng } from './rng';
 import { Terrain } from './terrain';
 import type {
@@ -341,6 +342,38 @@ export class Battle implements CombatCtx {
     return d;
   }
 
+  private canAboutFace(u: Unit): boolean {
+    const cat = u.type.category;
+    return this.form(u).aboutFace && (cat === 'infantry' || cat === 'cavalry' || cat === 'missile');
+  }
+
+  /** Speed and turn rate a path order moves at (per turn), for planning and the preview. */
+  private orderMotion(u: Unit, type: Order['type']): { speed: number; turn: number } {
+    const sp = this.speeds(u);
+    const cat = u.type.category;
+    // Running infantry and cavalry turn slower (the battle applies this once the run starts).
+    const turn = type === 'run' && (cat === 'infantry' || cat === 'cavalry') && !u.running ? sp.turn * 0.7 : sp.turn;
+    return { speed: this.reach(u, type), turn };
+  }
+
+  /**
+   * Turning radius for planning a curved path (wiki: worked out from the fastest the unit could go
+   * on that order, not the speed it is managing), with a little slack.
+   */
+  turnRadius(u: Unit, type: Order['type']): number {
+    const { speed, turn } = this.orderMotion(u, type);
+    const sp = this.speeds(u);
+    return turnRadius(Math.max(speed, type === 'run' ? sp.run : sp.walk), turn) * 1.1;
+  }
+
+  /** This turn's movement for a path order, run through the battle's own steering law. */
+  previewOrder(u: Unit, o: Order): MovePreview {
+    const { speed, turn } = this.orderMotion(u, o.type);
+    return previewMove(u, o.path ?? [], speed, turn, STEPS_PER_TURN, SUBSTEPS, {
+      backwards: o.type === 'fallback', aboutFace: this.canAboutFace(u), finalFacing: o.facing,
+    });
+  }
+
   speeds(u: Unit): { walk: number; run: number; turn: number } {
     const f = this.form(u);
     const t = u.type;
@@ -448,7 +481,7 @@ export class Battle implements CombatCtx {
       }
       u.lastTargetDist = d;
     } else if (o.path && o.path.length) {
-      while (o.path.length && Math.hypot(o.path[0].x - u.x, o.path[0].z - u.z) < 1.5) o.path.shift();
+      while (o.path.length && Math.hypot(o.path[0].x - u.x, o.path[0].z - u.z) < ARRIVE) o.path.shift();
       goal = o.path[0] ?? null;
       if (o.path.length <= 1) finalFacing = o.facing ?? null;
       if (o.type === 'fireAdvance' && u.type.ranged) {
@@ -474,21 +507,20 @@ export class Battle implements CombatCtx {
     const heading = Math.atan2(dz, dx);
     const want = backwards ? wrapAngle(heading + Math.PI) : heading;
     const diff = Math.abs(angleDiff(u.facing, want));
-    const cat = u.type.category;
     // Turning delay: a sharp reversal makes infantry and cavalry stop and about-face (wiki).
-    if (diff > (135 * Math.PI) / 180 && !backwards && this.form(u).aboutFace && (cat === 'infantry' || cat === 'cavalry' || cat === 'missile')) {
+    if (diff > ABOUT_FACE && !backwards && this.canAboutFace(u)) {
       u.rotated180 = 2;
       u.runRamp = 0;
       return;
     }
-    u.facing = turnToward(u.facing, want, turnStep);
-    const rem = Math.abs(angleDiff(u.facing, want));
-    const advance = rem < 0.3 ? 1 : rem < 0.9 ? Math.cos(rem) * 0.6 : 0;
+    const cat = u.type.category;
     const run = o.type === 'run' && u.staminaFrac > 0;
     let speed = run ? sp.run : sp.walk;
     if (o.type === 'fallback') speed *= cat === 'cavalry' ? 0.7 : 0.65;
     if (o.type === 'fireAdvance' && this.firedThisTick.has(u.id)) speed *= u.type.category === 'skirmisher' ? 0.6 : 0.9;
-    const step = Math.min(dist, speed * dt * advance);
+    const st = steerStep(u, goal, backwards, turnStep, speed * dt);
+    u.facing = st.facing;
+    const step = st.step;
     if (step <= 0) return;
     u.x += Math.cos(heading) * step;
     u.z += Math.sin(heading) * step;

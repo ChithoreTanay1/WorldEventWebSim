@@ -1,0 +1,219 @@
+{
+  "id": "north-india-455",
+  "name": "The Huna Wars",
+  "era": "North India · Gupta era, from 455 CE",
+  "disclaimer": "An invented campaign loosely set during the Huna incursions into the Gupta empire in the 5th century CE. Settlement positions are real; borders, armies and events are not a reconstruction.",
+  "briefing": "Huna horsemen have come through the passes and hold the north-west. Their host gathers at Sakala on the Chenab. Hold the frontier at Sthanvishvara, protect Pataliputra, and take the Huna base at Purushapura to end the war. Pick an army, right-click a city to march, then end the turn. When armies meet, you fight the battle yourself or auto-resolve it.",
+  "startYear": 455,
+  "player": "gupta",
+  "bounds": [68, 20, 90, 36],
+  "scale": 80,
+  "factions": {
+    "gupta": { "name": "Gupta Empire", "color": "#d08a2e", "capital": "pataliputra", "move": 150, "fastMove": 185,
+      "recruits": ["levy-spearmen", "archers", "heavy-infantry", "heavy-cavalry", "war-elephants"] },
+    "huna": { "name": "Huna Host", "color": "#5b7f9e", "capital": "purushapura", "ai": true, "move": 150, "fastMove": 190,
+      "recruits": ["horse-archers", "steppe-lancers", "skirmishers"] }
+  },
+  "settlements": [
+    { "id": "pataliputra", "name": "Pataliputra", "pos": [85.14, 25.68], "owner": "gupta", "note": "Imperial capital on the Ganga" },
+    { "id": "mithila", "name": "Mithila", "pos": [85.9, 26.72], "owner": "gupta" },
+    { "id": "gauda", "name": "Gauda", "pos": [88.0, 25.05], "owner": "gupta" },
+    { "id": "tamralipti", "name": "Tamralipti", "pos": [87.65, 22.45], "owner": "gupta", "note": "Port on the Bay of Bengal" },
+    { "id": "varanasi", "name": "Varanasi", "pos": [83.0, 25.4], "owner": "gupta" },
+    { "id": "ayodhya", "name": "Ayodhya", "pos": [82.2, 26.75], "owner": "gupta" },
+    { "id": "prayaga", "name": "Prayaga", "pos": [81.75, 25.6], "owner": "gupta", "note": "Where the Ganga meets the Yamuna" },
+    { "id": "kanyakubja", "name": "Kanyakubja", "pos": [79.85, 26.95], "owner": "gupta" },
+    { "id": "ahichchhatra", "name": "Ahichchhatra", "pos": [79.13, 28.37], "owner": "gupta" },
+    { "id": "mathura", "name": "Mathura", "pos": [77.45, 27.55], "owner": "gupta" },
+    { "id": "padmavati", "name": "Padmavati", "pos": [78.2, 25.9], "owner": "gupta" },
+    { "id": "vidisha", "name": "Vidisha", "pos": [77.8, 23.52], "owner": "gupta" },
+    { "id": "ujjayini", "name": "Ujjayini", "pos": [75.78, 23.18], "owner": "gupta", "note": "Seat of the western provinces" },
+    { "id": "pushkara", "name": "Pushkara", "pos": [74.55, 26.49], "owner": "gupta", "note": "Lake shrine at the edge of the Thar" },
+    { "id": "madhyamika", "name": "Madhyamika", "pos": [74.6, 24.9], "owner": "gupta" },
+    { "id": "sthanvishvara", "name": "Sthanvishvara", "pos": [76.83, 29.97], "owner": "gupta", "note": "The frontier fortress" },
+    { "id": "sakala", "name": "Sakala", "pos": [74.53, 32.49], "owner": "huna" },
+    { "id": "mulasthana", "name": "Mulasthana", "pos": [71.47, 30.2], "owner": "huna" },
+    { "id": "takshashila", "name": "Takshashila", "pos": [72.83, 33.74], "owner": "huna" },
+    { "id": "purushapura", "name": "Purushapura", "pos": [71.57, 34.0], "owner": "huna", "note": "Huna base below the passes" }
+  ],
+  "roads": [
+    ["purushapura", "takshashila"],
+    ["purushapura", "mulasthana"],
+    ["takshashila", "sakala"],
+    ["mulasthana", "sakala"],
+    ["mulasthana", "sthanvishvara"],
+    ["sakala", "sthanvishvara"],
+    ["sthanvishvara", "mathura"],
+    ["sthanvishvara", "ahichchhatra"],
+    ["mathura", "ahichchhatra"],
+    ["mathura", "kanyakubja"],
+    ["ahichchhatra", "kanyakubja"],
+    ["mathura", "padmavati"],
+    ["padmavati", "vidisha"],
+    ["vidisha", "ujjayini"],
+    ["ujjayini", "mathura"],
+    ["mulasthana", "pushkara"],
+    ["pushkara", "madhyamika"],
+    ["pushkara", "mathura"],
+    ["madhyamika", "ujjayini"],
+    ["vidisha", "prayaga"],
+    ["padmavati", "prayaga"],
+    ["kanyakubja", "ayodhya"],
+    ["kanyakubja", "prayaga"],
+    ["ayodhya", "prayaga"],
+    ["ayodhya", "varanasi"],
+    ["prayaga", "varanasi"],
+    ["varanasi", "pataliputra"],
+    ["ayodhya", "mithila"],
+    ["pataliputra", "mithila"],
+    ["pataliputra", "gauda"],
+    ["pataliputra", "tamralipti"],
+    ["gauda", "tamralipti"]
+  ],
+  "rivers": [
+    { "name": "Indus", "points": [[72.6, 35.6], [72.3, 34.4], [72.1, 33.4], [71.75, 32.2], [71.2, 30.9], [70.6, 29.2], [69.6, 27.5], [68.8, 26.0], [68.2, 24.5], [67.6, 23.4]] },
+    { "name": "Chenab", "points": [[74.9, 33.6], [74.25, 32.75], [73.3, 31.7], [72.3, 30.7], [71.6, 29.7], [70.9, 28.8]] },
+    { "name": "Sutlej", "points": [[77.4, 31.6], [76.3, 31.25], [75.1, 31.0], [74.0, 30.4], [72.6, 29.5], [71.6, 29.7]] },
+    { "name": "Yamuna", "points": [[77.6, 31.0], [77.25, 29.6], [77.2, 28.6], [77.8, 27.3], [78.9, 26.65], [80.2, 25.9], [81.6, 25.42]] },
+    { "name": "Ganga", "points": [[78.2, 30.4], [78.15, 29.3], [78.7, 28.6], [79.7, 27.45], [80.3, 26.8], [80.9, 25.95], [81.6, 25.42], [82.3, 25.3], [83.0, 25.2], [84.2, 25.42], [85.15, 25.5], [86.5, 25.25], [87.7, 24.75], [88.2, 23.8], [88.2, 22.7], [88.1, 21.5]] },
+    { "name": "Sarayu", "points": [[80.6, 29.2], [81.5, 27.7], [82.3, 27.0], [83.5, 26.3], [84.6, 25.7], [85.15, 25.5]] },
+    { "name": "Son", "points": [[81.9, 22.8], [82.9, 23.9], [83.9, 24.8], [84.8, 25.42]] },
+    { "name": "Narmada", "points": [[81.7, 22.7], [79.5, 23.05], [77.5, 22.6], [75.5, 22.15], [73.6, 21.8], [72.6, 21.6]] }
+  ],
+  "ridge": [[67.5, 35.4], [70.5, 35.7], [72.5, 35.2], [74.0, 34.5], [75.5, 33.4], [77.0, 32.2], [78.5, 31.0], [80.0, 30.1], [81.5, 29.4], [83.0, 28.75], [84.5, 28.1], [86.0, 27.75], [88.0, 27.45], [90.5, 27.3]],
+  "hills": [
+    { "pos": [70.4, 33.1], "radius": 0.9, "height": 22 },
+    { "pos": [69.9, 31.6], "radius": 0.9, "height": 20 },
+    { "pos": [69.6, 30.1], "radius": 0.8, "height": 16 },
+    { "pos": [68.8, 28.7], "radius": 0.8, "height": 14 },
+    { "pos": [72.6, 32.75], "radius": 0.5, "height": 7 },
+    { "pos": [73.4, 32.7], "radius": 0.45, "height": 6 },
+    { "pos": [73.6, 24.6], "radius": 0.6, "height": 10 },
+    { "pos": [74.3, 25.6], "radius": 0.6, "height": 10 },
+    { "pos": [75.3, 26.15], "radius": 0.55, "height": 9 },
+    { "pos": [75.7, 27.3], "radius": 0.5, "height": 7 },
+    { "pos": [76.4, 22.85], "radius": 0.6, "height": 8 },
+    { "pos": [78.9, 24.1], "radius": 0.7, "height": 8 },
+    { "pos": [80.4, 24.4], "radius": 0.7, "height": 9 },
+    { "pos": [82.0, 24.25], "radius": 0.6, "height": 8 },
+    { "pos": [84.4, 23.4], "radius": 0.9, "height": 10 },
+    { "pos": [85.8, 23.3], "radius": 0.9, "height": 11 },
+    { "pos": [86.7, 23.7], "radius": 0.6, "height": 7 },
+    { "pos": [80.2, 21.6], "radius": 1.2, "height": 9 },
+    { "pos": [76.0, 21.2], "radius": 1.0, "height": 9 }
+  ],
+  "deserts": [
+    { "pos": [71.0, 27.1], "radius": 2.4, "height": 1 },
+    { "pos": [72.9, 26.0], "radius": 1.7, "height": 1 },
+    { "pos": [69.8, 25.0], "radius": 1.6, "height": 1 }
+  ],
+  "seas": [
+    [[86.6, 21.65], [87.4, 21.8], [88.6, 21.7], [89.5, 21.95], [91, 22.3], [91, 19], [84, 19], [84.9, 19.9], [85.9, 20.6]],
+    [[67, 24.0], [68.4, 23.5], [69.2, 22.6], [70.2, 21.0], [71.4, 20.75], [72.6, 21.15], [72.85, 20.2], [72.9, 19], [67, 19]]
+  ],
+  "armies": [
+    {
+      "name": "Army of Skandagupta",
+      "faction": "gupta",
+      "at": "sthanvishvara",
+      "units": [
+        { "type": "archers", "name": "Archers (Left)" },
+        { "type": "archers", "name": "Archers (Right)" },
+        { "type": "war-elephants", "name": "Elephants (Left)" },
+        { "type": "war-elephants", "name": "Elephants (Right)" },
+        { "type": "heavy-infantry", "name": "Swordsmen (Left)" },
+        { "type": "heavy-infantry", "name": "Swordsmen (Right)" },
+        { "type": "levy-spearmen", "name": "Spearmen (Left)" },
+        { "type": "levy-spearmen", "name": "Spearmen (Right)" },
+        { "type": "heavy-cavalry", "name": "Lancers (South Wing)" },
+        { "type": "heavy-cavalry", "name": "Lancers (North Wing)" },
+        { "type": "heavy-cavalry", "name": "Emperor's Guard", "strength": 0.6, "general": true }
+      ]
+    },
+    {
+      "name": "Army of Malwa",
+      "faction": "gupta",
+      "at": "ujjayini",
+      "units": [
+        { "type": "archers", "name": "Malwa Archers I" },
+        { "type": "archers", "name": "Malwa Archers II" },
+        { "type": "levy-spearmen", "name": "Malwa Spearmen I" },
+        { "type": "levy-spearmen", "name": "Malwa Spearmen II" },
+        { "type": "heavy-infantry", "name": "Malwa Swordsmen" },
+        { "type": "heavy-cavalry", "name": "Malwa Lancers" },
+        { "type": "heavy-cavalry", "name": "Governor's Guard", "strength": 0.5, "general": true }
+      ]
+    },
+    {
+      "name": "Host of Toramana",
+      "faction": "huna",
+      "at": "sakala",
+      "units": [
+        { "type": "horse-archers", "name": "Horse Archers I" },
+        { "type": "horse-archers", "name": "Horse Archers II" },
+        { "type": "horse-archers", "name": "Horse Archers III" },
+        { "type": "horse-archers", "name": "Horse Archers IV" },
+        { "type": "horse-archers", "name": "Horse Archers V" },
+        { "type": "skirmishers", "name": "Skirmish Screen" },
+        { "type": "steppe-lancers", "name": "Heavy Horse (South)" },
+        { "type": "steppe-lancers", "name": "Heavy Horse (North)" },
+        { "type": "steppe-lancers", "name": "Khan's Guard", "strength": 0.6, "general": true }
+      ]
+    },
+    {
+      "name": "Raiders of Mulasthana",
+      "faction": "huna",
+      "at": "mulasthana",
+      "units": [
+        { "type": "horse-archers", "name": "Raiders I" },
+        { "type": "horse-archers", "name": "Raiders II" },
+        { "type": "horse-archers", "name": "Raiders III" },
+        { "type": "skirmishers", "name": "Foot Skirmishers" },
+        { "type": "steppe-lancers", "name": "Chieftain's Guard", "strength": 0.6, "general": true }
+      ]
+    },
+    {
+      "name": "Guard of the Passes",
+      "faction": "huna",
+      "at": "purushapura",
+      "units": [
+        { "type": "horse-archers", "name": "Pass Riders I" },
+        { "type": "horse-archers", "name": "Pass Riders II" },
+        { "type": "skirmishers", "name": "Hill Skirmishers I" },
+        { "type": "skirmishers", "name": "Hill Skirmishers II" },
+        { "type": "steppe-lancers", "name": "Warden's Guard", "strength": 0.5, "general": true }
+      ]
+    }
+  ],
+  "reinforcements": [
+    {
+      "faction": "huna",
+      "every": 4,
+      "at": "purushapura",
+      "maxArmies": 4,
+      "name": "Riders from the Passes",
+      "units": [
+        { "type": "horse-archers", "name": "Fresh Riders I" },
+        { "type": "horse-archers", "name": "Fresh Riders II" },
+        { "type": "horse-archers", "name": "Fresh Riders III" },
+        { "type": "steppe-lancers", "name": "Fresh Lancers" },
+        { "type": "steppe-lancers", "name": "Bannerman's Guard", "strength": 0.5, "general": true }
+      ]
+    },
+    {
+      "faction": "gupta",
+      "every": 5,
+      "at": "pataliputra",
+      "maxArmies": 4,
+      "name": "Levy of Magadha",
+      "units": [
+        { "type": "levy-spearmen", "name": "Magadha Spearmen I" },
+        { "type": "levy-spearmen", "name": "Magadha Spearmen II" },
+        { "type": "archers", "name": "Magadha Archers" },
+        { "type": "heavy-infantry", "name": "Magadha Swordsmen" },
+        { "type": "war-elephants", "name": "Magadha Elephants" },
+        { "type": "heavy-cavalry", "name": "Marshal's Guard", "strength": 0.5, "general": true }
+      ]
+    }
+  ]
+}
