@@ -9,11 +9,10 @@ import { Campaign, type BattleOutcome, type Encounter } from './campaign';
 import { MapView } from './mapView';
 import { battleOutcome, buildScenario } from './toScenario';
 import type { CampaignData, CampaignState } from './types';
+import { AUTOSAVE, QUICKSAVE, SaveStore, type SaveMeta } from './saves';
 import { CampaignHud } from './ui';
 
-const SAVE_PREFIX = 'gupta-campaign-v1';
-/** Each campaign keeps its own save. */
-const saveKey = (data: CampaignData) => `${SAVE_PREFIX}:${data.id}`;
+
 /** Map units per second while armies march. */
 const MARCH_SPEED = 240;
 const STEP = 3;
@@ -35,6 +34,7 @@ export class CampaignMode {
   private mouse = { x: -1, y: -1 };
   private hudTimer = 0;
   private marchBudget = 0;
+  readonly saves: SaveStore;
   private savedView: { x: number; z: number; d: number } | null = null;
   /** Reused projection result for per-frame hover picking. */
   private readonly pt = { x: 0, y: 0, visible: false };
@@ -46,7 +46,8 @@ export class CampaignMode {
     private readonly forms: Record<string, FormationDef>,
     private readonly rules: Rules,
   ) {
-    const saved = load(data);
+    this.saves = new SaveStore(data.id);
+    const saved = this.saves.load(AUTOSAVE);
     this.c = new Campaign(data, types, saved ?? Campaign.fresh(data));
     this.c.prepareTurn();
     this.canvas = document.createElement('canvas');
@@ -58,6 +59,14 @@ export class CampaignMode {
       endTurn: () => this.endTurn(),
       toggleMap: () => this.togglePolitical(),
       newCampaign: () => this.newCampaign(),
+      saves: {
+        list: () => this.saves.list(),
+        canSave: () => this.phase === 'planning' || this.phase === 'over',
+        saveNew: (name) => this.saveTo(this.saves.newId(), name),
+        overwrite: (m) => this.saveTo(m.id, m.name),
+        load: (id) => this.loadSave(id),
+        remove: (id) => this.saves.remove(id),
+      },
       select: (id) => this.select(id),
       recruit: (town, type) => this.phase === 'planning' && this.c.queueRecruit(this.c.player, town, type),
       cancelRecruit: (town, slot) => this.phase === 'planning' && this.c.cancelRecruit(town, slot),
@@ -81,7 +90,10 @@ export class CampaignMode {
       this.select(mine.id);
     }
     if (this.c.state.winner) this.phase = 'over';
-    if (!saved) this.hud.showBriefing();
+    if (!saved) {
+      this.autosave();
+      this.hud.showBriefing();
+    }
   }
 
   // ---------------------------------------------------------------- input
@@ -128,7 +140,10 @@ export class CampaignMode {
         if (e.code === 'Escape' || e.code === 'F1') this.hud.close();
         return;
       }
-      if (e.code === 'Space' || e.code === 'Enter') {
+      if (e.code === 'KeyS' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        this.quickSave();
+      } else if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault();
         this.endTurn();
       } else if (e.code === 'Escape') this.select(null);
@@ -284,7 +299,7 @@ export class CampaignMode {
     this.view.refreshOwners();
     perf.add('recolour', performance.now() - t);
     t = performance.now();
-    save(this.c.data, this.c.state);
+    this.autosave();
     perf.add('save', performance.now() - t);
     if (this.c.state.winner) {
       this.phase = 'over';
@@ -328,23 +343,60 @@ export class CampaignMode {
   }
 
   private newCampaign() {
-    try {
-      localStorage.removeItem(saveKey(this.c.data));
-    } catch {
-      /* storage may be blocked */
-    }
-    this.c.state = Campaign.fresh(this.c.data);
+    this.applyState(Campaign.fresh(this.c.data));
+    this.autosave();
+    this.hud.showBriefing();
+  }
+
+  // ---------------------------------------------------------------- saves
+
+  private meta(): Omit<SaveMeta, 'id' | 'name' | 'savedAt'> {
+    const c = this.c;
+    const towns = Object.values(c.state.owners).filter((o) => o === c.player).length;
+    return { turn: c.state.turn, season: c.seasonLabel(), summary: `${towns} towns · ${c.armiesOf(c.player).length} armies` };
+  }
+
+  /** Written at the end of every turn (and when a campaign starts). */
+  private autosave() {
+    this.saves.save(AUTOSAVE, 'Autosave', this.c.state, this.meta());
+  }
+
+  /** Save to a slot; returns an error message or null. */
+  private saveTo(id: string, name: string): string | null {
+    if (this.phase !== 'planning' && this.phase !== 'over') return 'Save between turns, while giving orders.';
+    const err = this.saves.save(id, name.trim() || `${this.c.seasonLabel()} (turn ${this.c.state.turn + 1})`, this.c.state, this.meta());
+    if (!err) this.hud.toast(`Saved: ${name.trim() || this.c.seasonLabel()}`);
+    return err;
+  }
+
+  private quickSave() {
+    const err = this.saveTo(QUICKSAVE, 'Quick save');
+    if (err) this.hud.toast(err);
+  }
+
+  private loadSave(id: string): string | null {
+    const st = this.saves.load(id);
+    if (!st) return 'That save could not be read.';
+    this.applyState(st);
+    this.hud.toast(`Loaded: ${this.c.seasonLabel()}`);
+    return null;
+  }
+
+  /** Swap in a whole campaign state (new campaign or a loaded save) and reset the map around it. */
+  private applyState(st: CampaignState) {
+    this.c.state = st;
     this.c.prepareTurn();
     this.c.encounters = [];
+    this.view.setPolitical(false);
     this.view.reset();
-    this.phase = 'planning';
+    this.hud.reset();
+    this.phase = st.winner ? 'over' : 'planning';
     const mine = this.c.armiesOf(this.c.player)[0];
+    this.select(mine ? mine.id : null);
     if (mine) {
       const p = this.c.armyPos(mine);
       this.view.cam.set(p.x, p.z + 60, 620);
-      this.select(mine.id);
     }
-    this.hud.showBriefing();
   }
 
   // ---------------------------------------------------------------- frame
@@ -414,24 +466,5 @@ export class CampaignMode {
     if (!fx && !fz) return;
     const speed = this.view.cam.zoomDistance * 1.1 * dt;
     this.view.cam.pan(fx * speed, fz * speed);
-  }
-}
-
-function load(data: CampaignData): CampaignState | null {
-  try {
-    const raw = localStorage.getItem(saveKey(data));
-    if (!raw) return null;
-    const st = JSON.parse(raw) as CampaignState;
-    return st.version === 1 && st.dataId === data.id ? st : null;
-  } catch {
-    return null;
-  }
-}
-
-function save(data: CampaignData, st: CampaignState) {
-  try {
-    localStorage.setItem(saveKey(data), JSON.stringify(st));
-  } catch {
-    /* storage may be blocked or full: the campaign still plays, it just won't survive a reload */
   }
 }

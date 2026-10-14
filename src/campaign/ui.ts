@@ -2,6 +2,7 @@
 // the fade used when the camera dives into a battle.
 import { markerCanvas } from '../render/icons';
 import { perf } from '../perf';
+import { AUTOSAVE, MAX_SAVES, QUICKSAVE, type SaveMeta } from './saves';
 import { ARMY_CAP, RECRUIT_SLOTS, type Campaign, type Encounter } from './campaign';
 import type { MapView } from './mapView';
 import type { Army } from './types';
@@ -13,8 +14,19 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', ...kids: (No
   return el;
 }
 
+export interface SaveHandlers {
+  list(): SaveMeta[];
+  canSave(): boolean;
+  /** Each returns an error message, or null when it worked. */
+  saveNew(name: string): string | null;
+  overwrite(m: SaveMeta): string | null;
+  load(id: string): string | null;
+  remove(id: string): void;
+}
+
 export interface CampaignHudHandlers {
   endTurn(): void;
+  saves: SaveHandlers;
   toggleMap(): void;
   newCampaign(): void;
   select(id: number | null): void;
@@ -48,6 +60,8 @@ export class CampaignHud {
   readonly tooltip = h('div', 'tooltip');
   private readonly overlay = h('div', 'overlay');
   readonly fade = h('div', 'camp-fade');
+  private readonly toastEl = h('div', 'camp-toast');
+  private toastTimer = 0;
   private readonly hint = h('div', 'context-hint camp-hint');
   private logCount = -1;
   private logTurn = -1;
@@ -63,6 +77,9 @@ export class CampaignHud {
     const mapBtn = h('button', 'btn', 'Realms (Tab)');
     mapBtn.title = 'Zoom out to the whole map, coloured by who holds each province';
     mapBtn.addEventListener('click', () => on.toggleMap());
+    const savesBtn = h('button', 'btn', 'Saves');
+    savesBtn.title = 'Save, load and delete campaigns (Ctrl+S quick-saves)';
+    savesBtn.addEventListener('click', () => this.showSaves());
     const newBtn = h('button', 'btn', 'New campaign');
     newBtn.addEventListener('click', () => this.confirmNew());
     const help = h('button', 'btn', '?');
@@ -72,14 +89,14 @@ export class CampaignHud {
       h('div', 'title', h('div', 'title-name', c.data.name), this.season),
       h('div', 'turn-box', this.turnLabel, this.phaseLabel),
       h('div', 'time-controls', this.endBtn),
-      h('div', 'top-right', mapBtn, newBtn, help),
+      h('div', 'top-right', mapBtn, savesBtn, newBtn, help),
     );
     const right = h('aside', 'side-panel',
       h('div', 'panel-title', 'Realms'), this.factions,
       h('div', 'panel-title', 'Chronicle'), h('div', 'log-wrap', this.log),
     );
     this.hint.textContent = 'Click an army or town · Right-click a town to march · Space ends the turn';
-    this.root.append(this.labels, top, right, this.card, this.hint, this.overlay, this.tooltip, this.fade);
+    this.root.append(this.labels, top, right, this.card, this.hint, this.overlay, this.tooltip, this.toastEl, this.fade);
     host.append(this.root);
     for (const [id, f] of Object.entries(c.data.factions)) {
       const el = h('div', 'camp-realm', f.name);
@@ -571,6 +588,95 @@ export class CampaignHud {
       h('h2', '', 'Start a new campaign?'),
       h('p', '', 'The current campaign is lost.'),
       h('div', 'dialog-actions', this.button('Cancel', false, () => {}), this.button('New campaign', true, () => this.on.newCampaign())),
+    );
+  }
+
+  /** A short message at the top of the screen. */
+  toast(text: string) {
+    this.toastEl.textContent = text;
+    this.toastEl.classList.add('show');
+    clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove('show'), 2200);
+  }
+
+  /** After a load or a new campaign: rebuild everything from the new state. */
+  reset() {
+    this.logCount = -1;
+    this.logTurn = -1;
+    this.log.replaceChildren();
+    this.cardKey = '';
+    this.factions.dataset.key = '';
+    this.factions.dataset.order = '';
+    this.close();
+  }
+
+  /** Saves: the autosave, the quick save and named saves, each with Load and Delete; save as new. */
+  showSaves() {
+    const sv = this.on.saves;
+    const can = sv.canSave();
+    const err = h('p', 'card-note camp-save-error');
+    const fail = (msg: string | null) => {
+      if (msg) err.textContent = msg;
+      return !msg;
+    };
+    const name = h('input', 'camp-save-name');
+    name.placeholder = `${this.c.seasonLabel()} (turn ${this.c.state.turn + 1})`;
+    name.maxLength = 48;
+    name.disabled = !can;
+    const saveBtn = h('button', 'btn btn-primary', 'Save as new');
+    saveBtn.disabled = !can || sv.list().filter((m) => m.id !== AUTOSAVE && m.id !== QUICKSAVE).length >= MAX_SAVES;
+    saveBtn.addEventListener('click', () => {
+      if (fail(sv.saveNew(name.value))) this.showSaves();
+    });
+    name.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') saveBtn.click();
+    });
+    const when = (t: number) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const rows = sv.list().map((m) => {
+      const kind = m.id === AUTOSAVE ? 'auto' : m.id === QUICKSAVE ? 'quick' : 'named';
+      const load = h('button', 'btn', 'Load');
+      load.addEventListener('click', () => this.confirm(`Load "${m.name}"?`, 'Progress since your last save will be lost.', 'Load', () => fail(sv.load(m.id))));
+      const del = h('button', 'btn camp-danger', 'Delete');
+      del.addEventListener('click', () => this.confirm(`Delete "${m.name}"?`, 'This cannot be undone.', 'Delete', () => {
+        sv.remove(m.id);
+        this.showSaves();
+      }));
+      const actions = h('div', 'camp-save-actions', load, del);
+      if (kind === 'named') {
+        const over = h('button', 'btn', 'Overwrite');
+        over.disabled = !can;
+        over.title = 'Save the current game over this one';
+        over.addEventListener('click', () => this.confirm(`Overwrite "${m.name}"?`, 'It will be replaced by the current game.', 'Overwrite', () => {
+          if (fail(sv.overwrite(m))) this.showSaves();
+        }));
+        actions.prepend(over);
+      }
+      return h('div', `camp-save camp-save-${kind}`,
+        h('div', 'camp-save-info',
+          h('div', 'camp-save-title', kind === 'auto' ? '⟳ Autosave' : kind === 'quick' ? '⚡ Quick save' : m.name),
+          h('div', 'card-sub', [m.season, m.summary, when(m.savedAt)].filter(Boolean).join(' · '))),
+        actions);
+    });
+    this.open(
+      h('h2', '', 'Saves'),
+      h('p', 'card-note', `The game autosaves at the end of every turn. Ctrl+S makes a quick save. Up to ${MAX_SAVES} named saves.`),
+      h('div', 'camp-save-new', name, saveBtn),
+      can ? '' : h('p', 'card-note', 'Saving is possible between turns, while you give orders.'),
+      err,
+      h('div', 'camp-saves', ...(rows.length ? rows : [h('p', 'card-note', 'No saves yet.')])),
+      h('div', 'dialog-actions', this.button('Close', false, () => {})),
+    );
+    if (can) name.focus();
+  }
+
+  private confirm(title: string, text: string, action: string, act: () => boolean | void) {
+    this.open(
+      h('h2', '', title),
+      h('p', '', text),
+      h('div', 'dialog-actions', this.button('Cancel', false, () => this.showSaves()), this.button(action, true, () => {
+        if (act() === false) this.showSaves();
+      })),
     );
   }
 
