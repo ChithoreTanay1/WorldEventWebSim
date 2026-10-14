@@ -21,9 +21,11 @@ export const RECRUIT_SLOTS = 10;
 export const SEASONS = ['Spring', 'Summer', 'Monsoon', 'Winter'];
 
 export interface Encounter {
-  /** Player army and enemy army ids. */
+  /** Player army and enemy army ids (for a battle between AI factions, simply the two armies). */
   player: number;
   enemy: number;
+  /** Neither side is the player's: settled by auto-resolve without asking. */
+  ai?: boolean;
   attacker: string;
   x: number;
   z: number;
@@ -127,7 +129,25 @@ export class Campaign {
   }
 
   hostileNear(faction: string, x: number, z: number, r: number): Army[] {
-    return this.armies.filter((o) => o.faction !== faction && dist(this.armyPos(o), { x, z }) < r);
+    return this.armies.filter((o) => !this.allied(o.faction, faction) && dist(this.armyPos(o), { x, z }) < r);
+  }
+
+  /** Same faction or allies (data `alliances`): they never fight or take each other's towns. */
+  allied(a: string, b: string): boolean {
+    if (a === b) return true;
+    return (this.data.alliances ?? []).some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+  }
+
+  /** The player or one of the player's allies. */
+  friendly(faction: string): boolean {
+    return this.allied(faction, this.player);
+  }
+
+  /** Chronicle colour for something that happened to `faction` (good = it went its way). */
+  private kindFor(faction: string, good: boolean): CampaignLogEntry['kind'] {
+    if (faction === this.player) return good ? 'good' : 'bad';
+    if (this.friendly(faction)) return good ? 'good' : 'warn';
+    return 'info';
   }
 
   seasonLabel(turn = this.state.turn): string {
@@ -360,11 +380,13 @@ export class Campaign {
   private arrive(a: Army): boolean {
     const s = a.from;
     const owner = this.state.owners[s];
-    if (owner === a.faction) return false;
+    if (this.allied(owner, a.faction)) return false;
     if (this.hostileNear(a.faction, this.pos[s].x, this.pos[s].z, CONTACT).length) return true;
     this.state.owners[s] = a.faction;
     const mine = a.faction === this.player;
-    this.log(`${a.name} ${mine ? 'takes' : 'seizes'} ${this.names[s]}.`, mine ? 'good' : 'bad');
+    const lost = this.friendly(owner) && !this.friendly(a.faction);
+    this.log(`${a.name} ${mine ? 'takes' : 'seizes'} ${this.names[s]}${mine ? '' : ` from the ${this.data.factions[owner]?.name ?? 'locals'}`}.`,
+      lost ? 'bad' : this.kindFor(a.faction, true));
     return true;
   }
 
@@ -373,10 +395,11 @@ export class Campaign {
     for (let i = 0; i < free.length; i++) {
       for (let j = i + 1; j < free.length; j++) {
         const a = free[i], b = free[j];
-        if (a.faction === b.faction || this.engaged.has(a.id) || this.engaged.has(b.id)) continue;
+        if (this.allied(a.faction, b.faction) || this.engaged.has(a.id) || this.engaged.has(b.id)) continue;
         const pa = this.armyPos(a), pb = this.armyPos(b);
         if (dist(pa, pb) >= CONTACT) continue;
-        const [p, e] = a.faction === this.player ? [a, b] : [b, a];
+        const [p, e] = b.faction === this.player ? [b, a] : [a, b];
+        const ai = p.faction !== this.player;
         // Whoever was marching toward the other attacks; if both were, the player does.
         const attacker = p.marching ? p.faction : e.faction;
         for (const x of [a, b]) {
@@ -385,7 +408,7 @@ export class Campaign {
           x.moveLeft = 0;
         }
         const x = (pa.x + pb.x) / 2, z = (pa.z + pb.z) / 2;
-        this.encounters.push({ player: p.id, enemy: e.id, attacker, x, z, place: this.nearestSettlement(x, z) });
+        this.encounters.push({ player: p.id, enemy: e.id, attacker, x, z, place: this.nearestSettlement(x, z), ai });
       }
     }
   }
@@ -414,12 +437,17 @@ export class Campaign {
       if (s) a.units = a.units.map((u, i) => ({ ...u, strength: Math.min(1, s[i] ?? u.strength) })).filter((u) => u.strength >= MIN_STRENGTH);
     }
     const place = this.names[enc.place];
-    if (out.winner === null) this.log(`The battle near ${place} ends in a draw.`, 'warn');
-    else this.log(`Battle near ${place}: ${this.data.factions[out.winner].name} victorious.`, out.winner === this.player ? 'good' : 'bad');
+    const fp = this.data.factions[p.faction].name, fe = this.data.factions[e.faction].name;
+    if (out.winner === null) this.log(`The battle near ${place} between the ${fp} and the ${fe} ends in a draw.`, enc.ai ? 'info' : 'warn');
+    else {
+      const w = out.winner, l = w === p.faction ? e.faction : p.faction;
+      this.log(`Battle near ${place}: the ${this.data.factions[w].name} defeat the ${this.data.factions[l].name}.`,
+        this.friendly(l) && !this.friendly(w) ? 'bad' : this.kindFor(w, true));
+    }
     const loser = out.winner === null ? (enc.attacker === p.faction ? p : e) : out.winner === p.faction ? e : p;
     for (const a of [p, e]) {
       if (a.units.length) continue;
-      this.log(`${a.name} is destroyed.`, a.faction === this.player ? 'bad' : 'good');
+      this.log(`${a.name} is destroyed.`, this.kindFor(a.faction, false));
       this.removeArmy(a);
     }
     if (this.army(loser.id)) this.retreat(loser);
@@ -433,7 +461,7 @@ export class Campaign {
       if (best === null || d < dist.get(best)!) best = n;
     }
     if (best === null) {
-      this.log(`${a.name} has nowhere to fall back to and scatters.`, a.faction === this.player ? 'bad' : 'good');
+      this.log(`${a.name} has nowhere to fall back to and scatters.`, this.kindFor(a.faction, false));
       this.removeArmy(a);
       return;
     }
@@ -441,7 +469,7 @@ export class Campaign {
     a.to = null;
     a.progress = 0;
     this.stop(a);
-    this.log(`${a.name} falls back to ${this.names[best]}.`, 'info');
+    if (this.friendly(a.faction)) this.log(`${a.name} falls back to ${this.names[best]}.`, 'info');
   }
 
   private removeArmy(a: Army) {
@@ -464,26 +492,46 @@ export class Campaign {
       const p = this.pos[r.at];
       if (this.hostileNear(r.faction, p.x, p.z, CONTACT * 2).length) continue;
       spawnArmy(st, r.name, r.faction, r.at, r.units);
-      this.log(`${r.name} musters at ${this.names[r.at]}.`, r.faction === this.player ? 'good' : 'warn');
+      this.log(`${r.name} musters at ${this.names[r.at]}.`, r.faction === this.player ? 'good' : 'info');
     }
     for (const a of this.armies) a.moveLeft = this.moveOf(a);
     this.checkVictory();
   }
 
+  /** Factions the player must defeat: everyone not allied with them. */
+  rivals(): string[] {
+    return Object.keys(this.data.factions).filter((f) => !this.friendly(f));
+  }
+
+  /**
+   * Lose when the player's capital falls (or the last army is gone). Win when every rival capital is
+   * held by the player or an ally. Rival factions that lose everything are announced as fallen.
+   */
   private checkVictory() {
     const st = this.state;
+    st.fallen ??= [];
+    for (const f of Object.keys(this.data.factions)) {
+      if (st.fallen.includes(f) || f === this.player) continue;
+      if (this.armiesOf(f).length || Object.values(st.owners).includes(f)) continue;
+      st.fallen.push(f);
+      this.log(`The ${this.data.factions[f].name} is no more.`, this.friendly(f) ? 'bad' : 'good');
+    }
     if (st.winner) return;
-    for (const [id, f] of Object.entries(this.data.factions)) {
-      const holder = st.owners[f.capital];
-      if (holder !== id) {
-        st.winner = holder;
-        this.log(`${this.names[f.capital]} has fallen. ${this.data.factions[holder].name} wins the war.`, holder === this.player ? 'good' : 'bad');
-        return;
-      }
+    const cap = this.data.factions[this.player].capital;
+    const holder = st.owners[cap];
+    if (!this.friendly(holder)) {
+      st.winner = holder;
+      this.log(`${this.names[cap]} has fallen to the ${this.data.factions[holder].name}.`, 'bad');
+      return;
     }
     if (this.armiesOf(this.player).length === 0) {
-      st.winner = Object.keys(this.data.factions).find((f) => f !== this.player)!;
+      st.winner = this.rivals()[0] ?? '';
       this.log('Your last army is gone. The war is lost.', 'bad');
+      return;
+    }
+    if (this.rivals().every((f) => this.friendly(st.owners[this.data.factions[f].capital]))) {
+      st.winner = this.player;
+      this.log('Every rival capital is yours.', 'good');
     }
   }
 

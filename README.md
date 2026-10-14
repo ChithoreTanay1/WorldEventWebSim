@@ -13,7 +13,12 @@ npm test        # rules, formation, data and balance tests
 npm run build   # static build in dist/ (GitHub Pages / Netlify)
 ```
 
-The game opens on the **campaign map** (North India, 455 CE): march armies between towns in simultaneous turns, recruit (10 slots per town, every unit ready next turn), split and merge armies. When armies meet, *Take command* dives the camera into a generated battlefield and casualties carry back to the map. `?mode=battle` opens the standalone battle.
+The game opens on the **campaign map**. Chapters, in story order:
+
+- **The Rise of the Guptas (319 CE)**, the default. Chandragupta I holds Magadha from Pataliputra, allied with the Licchavis of Vaishali. Ten neighbouring realms are at war with you and with each other: the Naga kings, Ahichchhatra, the Yaudheya, Madraka and Malava republics, the Western Kshatrapas, the Kushans, Vanga and the Vakatakas. Take every rival capital to win; lose Pataliputra and it is over.
+- **The Huna Wars (455 CE)**: `?campaign=north-india-455`.
+
+March armies between towns in simultaneous turns, recruit (10 slots per town, every unit ready next turn), and split and merge armies. Your towns and armies are framed in gold, and allies are marked. **Tab** zooms out to the whole map coloured by realm. When armies meet, *Take command* dives the camera into a generated battlefield, and casualties carry back to the map. `?mode=battle` opens the standalone battle.
 
 **Performance:** add `?perf` to the URL (or press F3) for an FPS / frame-time / draw-call overlay; `window.__perf.report()` gives CPU time per section, GPU time, draw calls and allocation rate. See [PERFORMANCE.md](PERFORMANCE.md) for the 60 FPS work and its numbers.
 

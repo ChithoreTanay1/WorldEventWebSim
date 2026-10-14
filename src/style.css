@@ -266,3 +266,29 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .camp-slot.filled:hover:not(:disabled) { border-color: var(--bad); }
 .camp-slot .camp-unit-icon { width: 80%; height: 80%; }
 .camp-slot:disabled { cursor: default; }
+
+/* campaign colour coding: you, allies, rivals */
+.camp-town.mine { border: 1px solid #f2c96b; box-shadow: 0 0 0 1px rgba(242, 201, 107, 0.35); font-weight: 600; }
+.camp-town.ally { border: 1px dashed rgba(246, 239, 220, 0.6); }
+.camp-army.mine { background: #e0a030; color: #1b140a; border-color: #f6efdc !important; }
+.camp-army.mine.sel { background: #f2c96b; }
+.camp-army.ally { border-style: dashed; }
+.camp-realm {
+  position: absolute; left: 0; top: 0; font-family: var(--serif); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  white-space: nowrap; text-shadow: 0 0 3px #000, 0 0 8px rgba(0, 0, 0, 0.8), 0 1px 2px #000; pointer-events: none;
+}
+.camp-legend .army-row { align-items: center; }
+.camp-realm-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.camp-swatch { width: 11px; height: 11px; border-radius: 2px; flex: none; border: 1px solid rgba(255, 255, 255, 0.5); }
+.camp-role { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; padding: 0 4px; border-radius: 2px; }
+.role-you { background: #e0a030; color: #1b140a; font-weight: 700; }
+.role-ally { border: 1px solid var(--good); color: var(--good); }
+.role-fallen { color: var(--dim); }
+.camp-legend.mine { background: rgba(224, 160, 48, 0.12); margin: 2px -6px; padding: 2px 6px; border-radius: 3px; }
+.camp-legend.fallen { opacity: 0.45; }
+.camp-legend { margin: 3px 0; }
+.camp-legend .bar { height: 3px; }
+.campaign-root.political > .camp-card { display: none !important; }
+.campaign-root.political .camp-town { opacity: 0.85; font-size: 11px; }
+.campaign-root.political .camp-town.mine { opacity: 1; }
+.camp-realm { z-index: 1; }

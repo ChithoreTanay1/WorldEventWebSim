@@ -14,7 +14,8 @@ const campaignFiles = import.meta.glob<CampaignData>('/data/campaign/*.json', { 
 const types: Record<string, UnitType> = Object.fromEntries(Object.values(unitFiles).map((t) => [t.id, t]));
 const forms: Record<string, FormationDef> = Object.fromEntries(Object.values(formFiles).map((f) => [f.id, f]));
 const scenarios = Object.values(scenarioFiles);
-const campaigns = Object.values(campaignFiles);
+// Chapters in story order; ?campaign=<id> picks one, otherwise the earliest.
+const campaigns = Object.values(campaignFiles).sort((a, b) => a.startYear - b.startYear);
 const params = new URLSearchParams(location.search);
 
 const app = document.getElementById('app')!;
@@ -36,7 +37,8 @@ if (battleOnly) {
     get replaying() { return session.replaying; },
   };
 } else {
-  const campaign = new CampaignMode(app, campaigns[0], types, forms, scenarios[0].rules);
+  const chosen = campaigns.find((c) => c.id === params.get('campaign')) ?? campaigns[0];
+  const campaign = new CampaignMode(app, chosen, types, forms, scenarios[0].rules);
   frameFn = (dt, now) => campaign.frame(dt, now);
   (window as unknown as { __campaign: unknown }).__campaign = campaign;
 }

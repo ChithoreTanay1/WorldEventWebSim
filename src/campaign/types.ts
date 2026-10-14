@@ -85,6 +85,11 @@ export interface CampaignData {
   seas: LonLat[][];
   armies: ArmyDef[];
   reinforcements: Reinforcement[];
+  /** Pairs of factions at peace: they never fight or take each other's towns. All others are at war. */
+  alliances?: [string, string][];
+  /** End-screen lines. */
+  victory?: string;
+  defeat?: string;
 }
 
 // ---------------------------------------------------------------- saved state
@@ -131,6 +136,8 @@ export interface CampaignState {
   winner: string | null;
   /** Units being raised this turn: one per town, ready at the start of next turn. */
   recruits: Recruit[];
+  /** Factions with no towns and no armies left (announced once). */
+  fallen?: string[];
 }
 
 export interface Recruit {

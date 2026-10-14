@@ -8,10 +8,10 @@ import type { Unit } from './unit';
 export type Plan = 'harass' | 'flank' | 'advance' | 'withdraw';
 
 const PLAN_TEXT: Record<Plan, string> = {
-  harass: 'The nomad horse archers ride forward to harass your line.',
+  harass: 'Enemy skirmishers and horse archers ride forward to harass your line.',
   flank: 'Enemy heavy horse swings wide around your southern flank!',
-  advance: 'The nomads sense weakness and commit to a general attack!',
-  withdraw: 'The nomad host begins to pull back.',
+  advance: 'The enemy senses weakness and commits to a general attack!',
+  withdraw: 'The enemy host begins to pull back.',
 };
 
 export class ArmyAI {

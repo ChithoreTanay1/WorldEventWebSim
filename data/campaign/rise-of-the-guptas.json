@@ -1,0 +1,1855 @@
+{
+ "id": "rise-of-the-guptas-319",
+ "name": "The Rise of the Guptas",
+ "era": "Magadha and its neighbours · from 319 CE",
+ "disclaimer": "Loosely based on the founding of the Gupta empire under Chandragupta I and Samudragupta. Town positions are real; borders, armies and events are simplified or invented, and the dates of these kingdoms are uncertain.",
+ "briefing": "Chandragupta I has taken the title Maharajadhiraja and holds Magadha, ruling from Pataliputra along the Ganga to Saketa and Prayaga. His marriage to the Licchavi princess Kumaradevi makes the Licchavis of Vaishali your allies. Around you, Aryavarta is divided: the Naga kings hold Padmavati, Mathura and Vidisha; Achyuta rules Ahichchhatra; the Yaudheya, Madraka and Malava republics guard the west; the Saka satraps hold Ujjayini; the Kushans rule beyond the Indus; Vanga holds Bengal and the Vakatakas the Deccan. Take every rival capital to make the Guptas paramount. Lose Pataliputra and the dynasty ends.",
+ "victory": "Every rival capital bows to Pataliputra. The Guptas are paramount in Aryavarta.",
+ "defeat": "Pataliputra has fallen. The Gupta line ends before it began.",
+ "startYear": 319,
+ "player": "gupta",
+ "bounds": [
+  68,
+  20,
+  90,
+  36
+ ],
+ "scale": 80,
+ "factions": {
+  "gupta": {
+   "name": "Gupta Empire",
+   "color": "#e0a030",
+   "capital": "pataliputra",
+   "move": 150,
+   "fastMove": 185,
+   "recruits": [
+    "levy-spearmen",
+    "archers",
+    "heavy-infantry",
+    "heavy-cavalry",
+    "war-elephants"
+   ]
+  },
+  "licchavi": {
+   "name": "Licchavi Republic",
+   "color": "#2fa39a",
+   "capital": "vaishali",
+   "ai": true,
+   "move": 150,
+   "fastMove": 185,
+   "recruits": [
+    "levy-spearmen",
+    "archers",
+    "heavy-infantry"
+   ]
+  },
+  "vanga": {
+   "name": "Kingdom of Vanga",
+   "color": "#3b6fc4",
+   "capital": "gauda",
+   "ai": true,
+   "move": 145,
+   "fastMove": 180,
+   "recruits": [
+    "levy-spearmen",
+    "archers",
+    "war-elephants",
+    "skirmishers"
+   ]
+  },
+  "naga": {
+   "name": "Naga Kings",
+   "color": "#4f9a3a",
+   "capital": "padmavati",
+   "ai": true,
+   "move": 150,
+   "fastMove": 185,
+   "recruits": [
+    "levy-spearmen",
+    "archers",
+    "heavy-infantry",
+    "heavy-cavalry",
+    "war-elephants"
+   ]
+  },
+  "ahichchhatra": {
+   "name": "Kingdom of Ahichchhatra",
+   "color": "#8f5bc0",
+   "capital": "ahichchhatra",
+   "ai": true,
+   "move": 150,
+   "fastMove": 185,
+   "recruits": [
+    "levy-spearmen",
+    "archers",
+    "heavy-infantry",
+    "heavy-cavalry"
+   ]
+  },
+  "yaudheya": {
+   "name": "Yaudheya Republic",
+   "color": "#6f86d6",
+   "capital": "rohitaka",
+   "ai": true,
+   "move": 150,
+   "fastMove": 185,
+   "recruits": [
+    "heavy-infantry",
+    "levy-spearmen",
+    "heavy-cavalry",
+    "archers"
+   ]
+  },
+  "madraka": {
+   "name": "Madraka Republic",
+   "color": "#9a6b3c",
+   "capital": "sakala",
+   "ai": true,
+   "move": 150,
+   "fastMove": 185,
+   "recruits": [
+    "heavy-cavalry",
+    "levy-spearmen",
+    "archers"
+   ]
+  },
+  "kushan": {
+   "name": "Kushan Kingdom",
+   "color": "#56657a",
+   "capital": "purushapura",
+   "ai": true,
+   "move": 150,
+   "fastMove": 190,
+   "recruits": [
+    "steppe-lancers",
+    "horse-archers",
+    "heavy-infantry",
+    "archers"
+   ]
+  },
+  "malava": {
+   "name": "Malava Republic",
+   "color": "#d0709e",
+   "capital": "madhyamika",
+   "ai": true,
+   "move": 150,
+   "fastMove": 185,
+   "recruits": [
+    "heavy-infantry",
+    "levy-spearmen",
+    "archers",
+    "heavy-cavalry"
+   ]
+  },
+  "kshatrapa": {
+   "name": "Western Kshatrapas",
+   "color": "#c0403a",
+   "capital": "ujjayini",
+   "ai": true,
+   "move": 150,
+   "fastMove": 190,
+   "recruits": [
+    "horse-archers",
+    "heavy-cavalry",
+    "levy-spearmen",
+    "archers",
+    "skirmishers"
+   ]
+  },
+  "vakataka": {
+   "name": "Vakataka Kingdom",
+   "color": "#a8a030",
+   "capital": "nandivardhana",
+   "ai": true,
+   "move": 145,
+   "fastMove": 180,
+   "recruits": [
+    "levy-spearmen",
+    "archers",
+    "war-elephants",
+    "heavy-infantry"
+   ]
+  }
+ },
+ "alliances": [
+  [
+   "gupta",
+   "licchavi"
+  ]
+ ],
+ "settlements": [
+  {
+   "id": "pataliputra",
+   "name": "Pataliputra",
+   "pos": [
+    85.14,
+    25.68
+   ],
+   "owner": "gupta",
+   "note": "Capital of Magadha"
+  },
+  {
+   "id": "gaya",
+   "name": "Gaya",
+   "pos": [
+    85.0,
+    24.78
+   ],
+   "owner": "gupta",
+   "note": "Southern Magadha"
+  },
+  {
+   "id": "varanasi",
+   "name": "Varanasi",
+   "pos": [
+    83.0,
+    25.4
+   ],
+   "owner": "gupta"
+  },
+  {
+   "id": "prayaga",
+   "name": "Prayaga",
+   "pos": [
+    81.75,
+    25.6
+   ],
+   "owner": "gupta",
+   "note": "Where the Ganga meets the Yamuna"
+  },
+  {
+   "id": "saketa",
+   "name": "Saketa",
+   "pos": [
+    82.2,
+    26.75
+   ],
+   "owner": "gupta",
+   "note": "Ayodhya"
+  },
+  {
+   "id": "vaishali",
+   "name": "Vaishali",
+   "pos": [
+    85.35,
+    26.2
+   ],
+   "owner": "licchavi",
+   "note": "Home of queen Kumaradevi's people"
+  },
+  {
+   "id": "mithila",
+   "name": "Mithila",
+   "pos": [
+    85.9,
+    26.72
+   ],
+   "owner": "licchavi"
+  },
+  {
+   "id": "champa",
+   "name": "Champa",
+   "pos": [
+    87.0,
+    25.25
+   ],
+   "owner": "vanga",
+   "note": "Old capital of Anga"
+  },
+  {
+   "id": "gauda",
+   "name": "Gauda",
+   "pos": [
+    88.0,
+    25.05
+   ],
+   "owner": "vanga"
+  },
+  {
+   "id": "tamralipti",
+   "name": "Tamralipti",
+   "pos": [
+    87.65,
+    22.45
+   ],
+   "owner": "vanga",
+   "note": "Port on the Bay of Bengal"
+  },
+  {
+   "id": "padmavati",
+   "name": "Padmavati",
+   "pos": [
+    78.2,
+    25.9
+   ],
+   "owner": "naga",
+   "note": "Seat of king Nagasena"
+  },
+  {
+   "id": "mathura",
+   "name": "Mathura",
+   "pos": [
+    77.45,
+    27.55
+   ],
+   "owner": "naga",
+   "note": "Held by Ganapatinaga"
+  },
+  {
+   "id": "vidisha",
+   "name": "Vidisha",
+   "pos": [
+    77.8,
+    23.52
+   ],
+   "owner": "naga"
+  },
+  {
+   "id": "ahichchhatra",
+   "name": "Ahichchhatra",
+   "pos": [
+    79.13,
+    28.37
+   ],
+   "owner": "ahichchhatra",
+   "note": "Seat of king Achyuta"
+  },
+  {
+   "id": "kanyakubja",
+   "name": "Kanyakubja",
+   "pos": [
+    79.85,
+    26.95
+   ],
+   "owner": "ahichchhatra"
+  },
+  {
+   "id": "rohitaka",
+   "name": "Rohitaka",
+   "pos": [
+    76.6,
+    28.9
+   ],
+   "owner": "yaudheya",
+   "note": "Yaudheya assembly town"
+  },
+  {
+   "id": "sthanvishvara",
+   "name": "Sthanvishvara",
+   "pos": [
+    76.83,
+    29.97
+   ],
+   "owner": "yaudheya"
+  },
+  {
+   "id": "sakala",
+   "name": "Sakala",
+   "pos": [
+    74.53,
+    32.49
+   ],
+   "owner": "madraka",
+   "note": "Madraka capital"
+  },
+  {
+   "id": "purushapura",
+   "name": "Purushapura",
+   "pos": [
+    71.57,
+    34.0
+   ],
+   "owner": "kushan",
+   "note": "Kushan seat below the passes"
+  },
+  {
+   "id": "takshashila",
+   "name": "Takshashila",
+   "pos": [
+    72.83,
+    33.74
+   ],
+   "owner": "kushan"
+  },
+  {
+   "id": "mulasthana",
+   "name": "Mulasthana",
+   "pos": [
+    71.47,
+    30.2
+   ],
+   "owner": "kushan"
+  },
+  {
+   "id": "madhyamika",
+   "name": "Madhyamika",
+   "pos": [
+    74.6,
+    24.9
+   ],
+   "owner": "malava",
+   "note": "Malava stronghold"
+  },
+  {
+   "id": "pushkara",
+   "name": "Pushkara",
+   "pos": [
+    74.55,
+    26.49
+   ],
+   "owner": "malava",
+   "note": "Lake shrine at the edge of the Thar"
+  },
+  {
+   "id": "ujjayini",
+   "name": "Ujjayini",
+   "pos": [
+    75.78,
+    23.18
+   ],
+   "owner": "kshatrapa",
+   "note": "Seat of the Saka satraps"
+  },
+  {
+   "id": "bharukaccha",
+   "name": "Bharukaccha",
+   "pos": [
+    72.95,
+    21.85
+   ],
+   "owner": "kshatrapa",
+   "note": "Port at the mouth of the Narmada"
+  },
+  {
+   "id": "nandivardhana",
+   "name": "Nandivardhana",
+   "pos": [
+    79.3,
+    21.4
+   ],
+   "owner": "vakataka",
+   "note": "Vakataka capital"
+  }
+ ],
+ "roads": [
+  [
+   "pataliputra",
+   "gaya"
+  ],
+  [
+   "pataliputra",
+   "vaishali"
+  ],
+  [
+   "vaishali",
+   "mithila"
+  ],
+  [
+   "pataliputra",
+   "varanasi"
+  ],
+  [
+   "gaya",
+   "varanasi"
+  ],
+  [
+   "pataliputra",
+   "champa"
+  ],
+  [
+   "champa",
+   "gauda"
+  ],
+  [
+   "gauda",
+   "tamralipti"
+  ],
+  [
+   "gaya",
+   "tamralipti"
+  ],
+  [
+   "varanasi",
+   "prayaga"
+  ],
+  [
+   "varanasi",
+   "saketa"
+  ],
+  [
+   "saketa",
+   "prayaga"
+  ],
+  [
+   "saketa",
+   "mithila"
+  ],
+  [
+   "prayaga",
+   "kanyakubja"
+  ],
+  [
+   "saketa",
+   "kanyakubja"
+  ],
+  [
+   "kanyakubja",
+   "ahichchhatra"
+  ],
+  [
+   "kanyakubja",
+   "mathura"
+  ],
+  [
+   "ahichchhatra",
+   "mathura"
+  ],
+  [
+   "ahichchhatra",
+   "sthanvishvara"
+  ],
+  [
+   "mathura",
+   "padmavati"
+  ],
+  [
+   "prayaga",
+   "padmavati"
+  ],
+  [
+   "padmavati",
+   "vidisha"
+  ],
+  [
+   "vidisha",
+   "prayaga"
+  ],
+  [
+   "vidisha",
+   "ujjayini"
+  ],
+  [
+   "vidisha",
+   "nandivardhana"
+  ],
+  [
+   "ujjayini",
+   "nandivardhana"
+  ],
+  [
+   "ujjayini",
+   "bharukaccha"
+  ],
+  [
+   "ujjayini",
+   "madhyamika"
+  ],
+  [
+   "ujjayini",
+   "mathura"
+  ],
+  [
+   "madhyamika",
+   "pushkara"
+  ],
+  [
+   "madhyamika",
+   "bharukaccha"
+  ],
+  [
+   "pushkara",
+   "mathura"
+  ],
+  [
+   "pushkara",
+   "rohitaka"
+  ],
+  [
+   "rohitaka",
+   "mathura"
+  ],
+  [
+   "rohitaka",
+   "sthanvishvara"
+  ],
+  [
+   "sthanvishvara",
+   "sakala"
+  ],
+  [
+   "sakala",
+   "takshashila"
+  ],
+  [
+   "purushapura",
+   "takshashila"
+  ],
+  [
+   "purushapura",
+   "mulasthana"
+  ],
+  [
+   "mulasthana",
+   "sakala"
+  ],
+  [
+   "mulasthana",
+   "pushkara"
+  ]
+ ],
+ "rivers": [
+  {
+   "name": "Indus",
+   "points": [
+    [
+     72.6,
+     35.6
+    ],
+    [
+     72.3,
+     34.4
+    ],
+    [
+     72.1,
+     33.4
+    ],
+    [
+     71.75,
+     32.2
+    ],
+    [
+     71.2,
+     30.9
+    ],
+    [
+     70.6,
+     29.2
+    ],
+    [
+     69.6,
+     27.5
+    ],
+    [
+     68.8,
+     26.0
+    ],
+    [
+     68.2,
+     24.5
+    ],
+    [
+     67.6,
+     23.4
+    ]
+   ]
+  },
+  {
+   "name": "Chenab",
+   "points": [
+    [
+     74.9,
+     33.6
+    ],
+    [
+     74.25,
+     32.75
+    ],
+    [
+     73.3,
+     31.7
+    ],
+    [
+     72.3,
+     30.7
+    ],
+    [
+     71.6,
+     29.7
+    ],
+    [
+     70.9,
+     28.8
+    ]
+   ]
+  },
+  {
+   "name": "Sutlej",
+   "points": [
+    [
+     77.4,
+     31.6
+    ],
+    [
+     76.3,
+     31.25
+    ],
+    [
+     75.1,
+     31.0
+    ],
+    [
+     74.0,
+     30.4
+    ],
+    [
+     72.6,
+     29.5
+    ],
+    [
+     71.6,
+     29.7
+    ]
+   ]
+  },
+  {
+   "name": "Yamuna",
+   "points": [
+    [
+     77.6,
+     31.0
+    ],
+    [
+     77.25,
+     29.6
+    ],
+    [
+     77.2,
+     28.6
+    ],
+    [
+     77.8,
+     27.3
+    ],
+    [
+     78.9,
+     26.65
+    ],
+    [
+     80.2,
+     25.9
+    ],
+    [
+     81.6,
+     25.42
+    ]
+   ]
+  },
+  {
+   "name": "Ganga",
+   "points": [
+    [
+     78.2,
+     30.4
+    ],
+    [
+     78.15,
+     29.3
+    ],
+    [
+     78.7,
+     28.6
+    ],
+    [
+     79.7,
+     27.45
+    ],
+    [
+     80.3,
+     26.8
+    ],
+    [
+     80.9,
+     25.95
+    ],
+    [
+     81.6,
+     25.42
+    ],
+    [
+     82.3,
+     25.3
+    ],
+    [
+     83.0,
+     25.2
+    ],
+    [
+     84.2,
+     25.42
+    ],
+    [
+     85.15,
+     25.5
+    ],
+    [
+     86.5,
+     25.25
+    ],
+    [
+     87.7,
+     24.75
+    ],
+    [
+     88.2,
+     23.8
+    ],
+    [
+     88.2,
+     22.7
+    ],
+    [
+     88.1,
+     21.5
+    ]
+   ]
+  },
+  {
+   "name": "Sarayu",
+   "points": [
+    [
+     80.6,
+     29.2
+    ],
+    [
+     81.5,
+     27.7
+    ],
+    [
+     82.3,
+     27.0
+    ],
+    [
+     83.5,
+     26.3
+    ],
+    [
+     84.6,
+     25.7
+    ],
+    [
+     85.15,
+     25.5
+    ]
+   ]
+  },
+  {
+   "name": "Son",
+   "points": [
+    [
+     81.9,
+     22.8
+    ],
+    [
+     82.9,
+     23.9
+    ],
+    [
+     83.9,
+     24.8
+    ],
+    [
+     84.8,
+     25.42
+    ]
+   ]
+  },
+  {
+   "name": "Narmada",
+   "points": [
+    [
+     81.7,
+     22.7
+    ],
+    [
+     79.5,
+     23.05
+    ],
+    [
+     77.5,
+     22.6
+    ],
+    [
+     75.5,
+     22.15
+    ],
+    [
+     73.6,
+     21.8
+    ],
+    [
+     72.6,
+     21.6
+    ]
+   ]
+  }
+ ],
+ "ridge": [
+  [
+   67.5,
+   35.4
+  ],
+  [
+   70.5,
+   35.7
+  ],
+  [
+   72.5,
+   35.2
+  ],
+  [
+   74.0,
+   34.5
+  ],
+  [
+   75.5,
+   33.4
+  ],
+  [
+   77.0,
+   32.2
+  ],
+  [
+   78.5,
+   31.0
+  ],
+  [
+   80.0,
+   30.1
+  ],
+  [
+   81.5,
+   29.4
+  ],
+  [
+   83.0,
+   28.75
+  ],
+  [
+   84.5,
+   28.1
+  ],
+  [
+   86.0,
+   27.75
+  ],
+  [
+   88.0,
+   27.45
+  ],
+  [
+   90.5,
+   27.3
+  ]
+ ],
+ "hills": [
+  {
+   "pos": [
+    70.4,
+    33.1
+   ],
+   "radius": 0.9,
+   "height": 22
+  },
+  {
+   "pos": [
+    69.9,
+    31.6
+   ],
+   "radius": 0.9,
+   "height": 20
+  },
+  {
+   "pos": [
+    69.6,
+    30.1
+   ],
+   "radius": 0.8,
+   "height": 16
+  },
+  {
+   "pos": [
+    68.8,
+    28.7
+   ],
+   "radius": 0.8,
+   "height": 14
+  },
+  {
+   "pos": [
+    72.6,
+    32.75
+   ],
+   "radius": 0.5,
+   "height": 7
+  },
+  {
+   "pos": [
+    73.4,
+    32.7
+   ],
+   "radius": 0.45,
+   "height": 6
+  },
+  {
+   "pos": [
+    73.6,
+    24.6
+   ],
+   "radius": 0.6,
+   "height": 10
+  },
+  {
+   "pos": [
+    74.3,
+    25.6
+   ],
+   "radius": 0.6,
+   "height": 10
+  },
+  {
+   "pos": [
+    75.3,
+    26.15
+   ],
+   "radius": 0.55,
+   "height": 9
+  },
+  {
+   "pos": [
+    75.7,
+    27.3
+   ],
+   "radius": 0.5,
+   "height": 7
+  },
+  {
+   "pos": [
+    76.4,
+    22.85
+   ],
+   "radius": 0.6,
+   "height": 8
+  },
+  {
+   "pos": [
+    78.9,
+    24.1
+   ],
+   "radius": 0.7,
+   "height": 8
+  },
+  {
+   "pos": [
+    80.4,
+    24.4
+   ],
+   "radius": 0.7,
+   "height": 9
+  },
+  {
+   "pos": [
+    82.0,
+    24.25
+   ],
+   "radius": 0.6,
+   "height": 8
+  },
+  {
+   "pos": [
+    84.4,
+    23.4
+   ],
+   "radius": 0.9,
+   "height": 10
+  },
+  {
+   "pos": [
+    85.8,
+    23.3
+   ],
+   "radius": 0.9,
+   "height": 11
+  },
+  {
+   "pos": [
+    86.7,
+    23.7
+   ],
+   "radius": 0.6,
+   "height": 7
+  },
+  {
+   "pos": [
+    80.2,
+    21.6
+   ],
+   "radius": 1.2,
+   "height": 9
+  },
+  {
+   "pos": [
+    76.0,
+    21.2
+   ],
+   "radius": 1.0,
+   "height": 9
+  }
+ ],
+ "deserts": [
+  {
+   "pos": [
+    71.0,
+    27.1
+   ],
+   "radius": 2.4,
+   "height": 1
+  },
+  {
+   "pos": [
+    72.9,
+    26.0
+   ],
+   "radius": 1.7,
+   "height": 1
+  },
+  {
+   "pos": [
+    69.8,
+    25.0
+   ],
+   "radius": 1.6,
+   "height": 1
+  }
+ ],
+ "seas": [
+  [
+   [
+    86.6,
+    21.65
+   ],
+   [
+    87.4,
+    21.8
+   ],
+   [
+    88.6,
+    21.7
+   ],
+   [
+    89.5,
+    21.95
+   ],
+   [
+    91,
+    22.3
+   ],
+   [
+    91,
+    19
+   ],
+   [
+    84,
+    19
+   ],
+   [
+    84.9,
+    19.9
+   ],
+   [
+    85.9,
+    20.6
+   ]
+  ],
+  [
+   [
+    67,
+    24.0
+   ],
+   [
+    68.4,
+    23.5
+   ],
+   [
+    69.2,
+    22.6
+   ],
+   [
+    70.2,
+    21.0
+   ],
+   [
+    71.4,
+    20.75
+   ],
+   [
+    72.6,
+    21.15
+   ],
+   [
+    72.85,
+    20.2
+   ],
+   [
+    72.9,
+    19
+   ],
+   [
+    67,
+    19
+   ]
+  ]
+ ],
+ "armies": [
+  {
+   "name": "Army of Chandragupta",
+   "faction": "gupta",
+   "at": "pataliputra",
+   "units": [
+    {
+     "type": "archers",
+     "name": "Magadha Archers I"
+    },
+    {
+     "type": "archers",
+     "name": "Magadha Archers II"
+    },
+    {
+     "type": "war-elephants",
+     "name": "Royal Elephants"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Swordsmen of Pataliputra I"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Swordsmen of Pataliputra II"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Magadha Spearmen I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Magadha Spearmen II"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Magadha Lancers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Maharaja's Guard",
+     "strength": 0.6,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Prayaga Garrison",
+   "faction": "gupta",
+   "at": "prayaga",
+   "units": [
+    {
+     "type": "levy-spearmen",
+     "name": "Prayaga Spearmen I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Prayaga Spearmen II"
+    },
+    {
+     "type": "archers",
+     "name": "Prayaga Archers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Commander's Guard",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Licchavi Host",
+   "faction": "licchavi",
+   "at": "vaishali",
+   "units": [
+    {
+     "type": "levy-spearmen",
+     "name": "Vajji Spearmen I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Vajji Spearmen II"
+    },
+    {
+     "type": "archers",
+     "name": "Vajji Archers"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Licchavi Swordsmen I"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Licchavi Swordsmen II"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Gana Guard",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Host of Vanga",
+   "faction": "vanga",
+   "at": "gauda",
+   "units": [
+    {
+     "type": "war-elephants",
+     "name": "Vanga Elephants I"
+    },
+    {
+     "type": "war-elephants",
+     "name": "Vanga Elephants II"
+    },
+    {
+     "type": "archers",
+     "name": "Vanga Archers I"
+    },
+    {
+     "type": "archers",
+     "name": "Vanga Archers II"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Vanga Spearmen I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Vanga Spearmen II"
+    },
+    {
+     "type": "skirmishers",
+     "name": "River Skirmishers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "King's Guard",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Host of Nagasena",
+   "faction": "naga",
+   "at": "padmavati",
+   "units": [
+    {
+     "type": "war-elephants",
+     "name": "Naga Elephants"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Naga Swordsmen I"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Naga Swordsmen II"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Naga Spearmen I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Naga Spearmen II"
+    },
+    {
+     "type": "archers",
+     "name": "Naga Archers I"
+    },
+    {
+     "type": "archers",
+     "name": "Naga Archers II"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Naga Lancers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Nagasena's Guard",
+     "strength": 0.6,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Army of Ganapatinaga",
+   "faction": "naga",
+   "at": "mathura",
+   "units": [
+    {
+     "type": "levy-spearmen",
+     "name": "Mathura Spearmen I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Mathura Spearmen II"
+    },
+    {
+     "type": "archers",
+     "name": "Mathura Archers"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Mathura Swordsmen"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Ganapatinaga's Guard",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Host of Achyuta",
+   "faction": "ahichchhatra",
+   "at": "ahichchhatra",
+   "units": [
+    {
+     "type": "heavy-infantry",
+     "name": "Panchala Swordsmen I"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Panchala Swordsmen II"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Panchala Spearmen I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Panchala Spearmen II"
+    },
+    {
+     "type": "archers",
+     "name": "Panchala Archers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Panchala Lancers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Achyuta's Guard",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Yaudheya Warband",
+   "faction": "yaudheya",
+   "at": "rohitaka",
+   "units": [
+    {
+     "type": "heavy-infantry",
+     "name": "Yaudheya Swordsmen I"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Yaudheya Swordsmen II"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Yaudheya Spearmen I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Yaudheya Spearmen II"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Yaudheya Horse I"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Yaudheya Horse II"
+    },
+    {
+     "type": "archers",
+     "name": "Yaudheya Archers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Ganapati's Guard",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Madraka Horse",
+   "faction": "madraka",
+   "at": "sakala",
+   "units": [
+    {
+     "type": "heavy-cavalry",
+     "name": "Madraka Horse I"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Madraka Horse II"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Madraka Spearmen I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Madraka Spearmen II"
+    },
+    {
+     "type": "archers",
+     "name": "Madraka Archers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Assembly Guard",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Kushan Host",
+   "faction": "kushan",
+   "at": "purushapura",
+   "units": [
+    {
+     "type": "steppe-lancers",
+     "name": "Kushan Lancers I"
+    },
+    {
+     "type": "steppe-lancers",
+     "name": "Kushan Lancers II"
+    },
+    {
+     "type": "horse-archers",
+     "name": "Kushan Horse Archers I"
+    },
+    {
+     "type": "horse-archers",
+     "name": "Kushan Horse Archers II"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Bactrian Foot I"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Bactrian Foot II"
+    },
+    {
+     "type": "archers",
+     "name": "Gandhara Archers"
+    },
+    {
+     "type": "steppe-lancers",
+     "name": "Shah's Guard",
+     "strength": 0.6,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Taxila Garrison",
+   "faction": "kushan",
+   "at": "takshashila",
+   "units": [
+    {
+     "type": "heavy-infantry",
+     "name": "Taxila Foot"
+    },
+    {
+     "type": "archers",
+     "name": "Taxila Archers"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Taxila Spearmen"
+    },
+    {
+     "type": "steppe-lancers",
+     "name": "Governor's Guard",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Malava Levy",
+   "faction": "malava",
+   "at": "madhyamika",
+   "units": [
+    {
+     "type": "heavy-infantry",
+     "name": "Malava Swordsmen I"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Malava Swordsmen II"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Malava Spearmen I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Malava Spearmen II"
+    },
+    {
+     "type": "archers",
+     "name": "Malava Archers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Malava Guard",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Host of the Satrap",
+   "faction": "kshatrapa",
+   "at": "ujjayini",
+   "units": [
+    {
+     "type": "horse-archers",
+     "name": "Saka Horse Archers I"
+    },
+    {
+     "type": "horse-archers",
+     "name": "Saka Horse Archers II"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Saka Lancers I"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Saka Lancers II"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Avanti Spearmen I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Avanti Spearmen II"
+    },
+    {
+     "type": "archers",
+     "name": "Avanti Archers"
+    },
+    {
+     "type": "skirmishers",
+     "name": "Abhira Skirmishers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Mahakshatrapa's Guard",
+     "strength": 0.6,
+     "general": true
+    }
+   ]
+  },
+  {
+   "name": "Vakataka Host",
+   "faction": "vakataka",
+   "at": "nandivardhana",
+   "units": [
+    {
+     "type": "war-elephants",
+     "name": "Deccan Elephants I"
+    },
+    {
+     "type": "war-elephants",
+     "name": "Deccan Elephants II"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Vakataka Spearmen I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Vakataka Spearmen II"
+    },
+    {
+     "type": "archers",
+     "name": "Vakataka Archers I"
+    },
+    {
+     "type": "archers",
+     "name": "Vakataka Archers II"
+    },
+    {
+     "type": "heavy-infantry",
+     "name": "Vakataka Swordsmen"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Pravarasena's Guard",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  }
+ ],
+ "reinforcements": [
+  {
+   "faction": "gupta",
+   "every": 5,
+   "at": "pataliputra",
+   "maxArmies": 4,
+   "name": "Levy of Magadha",
+   "units": [
+    {
+     "type": "levy-spearmen",
+     "name": "Magadha Levy I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Magadha Levy II"
+    },
+    {
+     "type": "archers",
+     "name": "Magadha Levy Archers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Marshal's Guard",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "faction": "kushan",
+   "every": 5,
+   "at": "purushapura",
+   "maxArmies": 3,
+   "name": "Riders from Bactria",
+   "units": [
+    {
+     "type": "steppe-lancers",
+     "name": "Bactrian Lancers"
+    },
+    {
+     "type": "horse-archers",
+     "name": "Bactrian Horse Archers I"
+    },
+    {
+     "type": "horse-archers",
+     "name": "Bactrian Horse Archers II"
+    },
+    {
+     "type": "steppe-lancers",
+     "name": "Captain's Guard",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "faction": "kshatrapa",
+   "every": 6,
+   "at": "ujjayini",
+   "maxArmies": 3,
+   "name": "Saka Reinforcements",
+   "units": [
+    {
+     "type": "horse-archers",
+     "name": "Saka Riders"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Saka Nobles"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Avanti Levy"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Satrap's Kinsmen",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "faction": "naga",
+   "every": 6,
+   "at": "padmavati",
+   "maxArmies": 3,
+   "name": "Naga Muster",
+   "units": [
+    {
+     "type": "levy-spearmen",
+     "name": "Naga Levy I"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Naga Levy II"
+    },
+    {
+     "type": "archers",
+     "name": "Naga Levy Archers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Naga Captain",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  },
+  {
+   "faction": "vakataka",
+   "every": 6,
+   "at": "nandivardhana",
+   "maxArmies": 3,
+   "name": "Vakataka Muster",
+   "units": [
+    {
+     "type": "war-elephants",
+     "name": "Deccan Elephants"
+    },
+    {
+     "type": "levy-spearmen",
+     "name": "Deccan Levy"
+    },
+    {
+     "type": "archers",
+     "name": "Deccan Archers"
+    },
+    {
+     "type": "heavy-cavalry",
+     "name": "Vakataka Captain",
+     "strength": 0.5,
+     "general": true
+    }
+   ]
+  }
+ ]
+}

@@ -9,7 +9,7 @@ const DANGER_RANGE = 170;
 
 export function planAI(c: Campaign, faction: string) {
   const mine = c.armiesOf(faction).sort((a, b) => c.power(b) - c.power(a));
-  const foes = c.armies.filter((a) => a.faction !== faction);
+  const foes = c.armies.filter((a) => !c.allied(a.faction, faction));
   if (!mine.length) return;
   const capital = c.data.factions[faction].capital;
   const cap = c.pos[capital];
@@ -61,7 +61,7 @@ export function planAI(c: Campaign, faction: string) {
       if (s < score) (score = s), (target = node);
     }
     for (const s of c.data.settlements) {
-      if (c.state.owners[s.id] === faction) continue;
+      if (c.allied(c.state.owners[s.id], faction)) continue;
       const p = c.pos[s.id];
       if (foes.some((f) => c.power(f) > P * 0.7 && dist(c.armyPos(f), p) < 60)) continue;
       const sc = (road.get(s.id) ?? Infinity) - (s.id === c.data.factions[c.state.owners[s.id]]?.capital ? 150 : 0);
