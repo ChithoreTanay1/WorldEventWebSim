@@ -1,0 +1,68 @@
+{
+  "id": "licchavi-assembly-guard",
+  "name": "Vajji Assembly Guard",
+  "category": "infantry",
+  "figures": 140,
+  "canCapture": true,
+  "captureRate": 2,
+  "hp": 800,
+  "org": 875,
+  "stamina": 1760,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.25,
+    "rally": 0.5,
+    "shatter": -0.4
+  },
+  "walk": 65,
+  "run": 100,
+  "formations": {
+    "column": [
+      30,
+      26
+    ],
+    "line": [
+      56,
+      10
+    ],
+    "ring": [
+      28,
+      28
+    ]
+  },
+  "defaultFormation": "line",
+  "melee": {
+    "attack": 47,
+    "defense": 60,
+    "weapon": {
+      "name": "Sword",
+      "orgRatio": 320,
+      "bimTicks": 4,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher"
+      ]
+    },
+    "chargeBonus": 55,
+    "chargeResistance": 0.5,
+    "runChargeResMod": -1.1,
+    "chargePenetration": 0.65,
+    "flankPenBonus": 0.55,
+    "flankOrgMod": 1.0
+  },
+  "orgRadius": 90,
+  "orgRadiusBonus": 10,
+  "panicDistance": 40,
+  "visibility": 1,
+  "height": 1.8,
+  "icon": "sword",
+  "note": "Citizen soldiers of the oldest republic: they hold together long after others would break, but hit less hard.",
+  "kingdom": "licchavi",
+  "base": "heavy-infantry",
+  "traits": [
+    "+25% organization",
+    "+10% stamina",
+    "-10% melee attack"
+  ]
+}

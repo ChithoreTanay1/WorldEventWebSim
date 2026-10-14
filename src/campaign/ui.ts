@@ -1,6 +1,7 @@
 // Campaign HUD: top bar, selected-army card, faction summary and chronicle, map labels, dialogs and
 // the fade used when the camera dives into a battle.
 import { markerCanvas } from '../render/icons';
+import { perf } from '../perf';
 import { ARMY_CAP, RECRUIT_SLOTS, type Campaign, type Encounter } from './campaign';
 import type { MapView } from './mapView';
 import type { Army } from './types';
@@ -49,6 +50,7 @@ export class CampaignHud {
   readonly fade = h('div', 'camp-fade');
   private readonly hint = h('div', 'context-hint camp-hint');
   private logCount = -1;
+  private logTurn = -1;
   private cardKey = '';
   private icons = new Map<string, string>();
   /** Unit indices of the selected army picked for a detachment. */
@@ -116,10 +118,18 @@ export class CampaignHud {
     this.phaseLabel.textContent = phase;
     this.planning = phase === 'Your orders';
     this.endBtn.disabled = !this.planning;
+    let t = performance.now();
     this.renderFactions();
+    perf.add('hud: realms', performance.now() - t);
+    t = performance.now();
     this.renderLog();
+    perf.add('hud: chronicle', performance.now() - t);
+    t = performance.now();
     this.renderCard();
+    perf.add('hud: card', performance.now() - t);
+    t = performance.now();
     this.refreshLabels();
+    perf.add('hud: labels', performance.now() - t);
   }
 
   /**
@@ -201,6 +211,7 @@ export class CampaignHud {
       const s = side(owner);
       el.classList.toggle('mine', s === 'mine');
       el.classList.toggle('ally', s === 'ally');
+      el.classList.toggle('besieged', !!c.siegeOf(id));
       const q = queued.get(id) ?? 0;
       el.classList.toggle('recruiting', q > 0);
       if (el.dataset.rec !== `+${q}`) el.dataset.rec = `+${q}`;
@@ -271,12 +282,29 @@ export class CampaignHud {
       const power = armies.reduce((s, a) => s + c.power(a), 0);
       const role = id === c.player ? 'You' : c.friendly(id) ? 'Ally' : fallen.has(id) ? 'Fallen' : '';
       const rank = id === c.player ? 0 : c.friendly(id) ? 1 : fallen.has(id) ? 3 : 2;
-      return { id, f, towns, armies: armies.length, power, role, rank };
+      const gold = c.pays(id) ? c.gold(id) : null;
+      return { id, f, towns, armies: armies.length, power, role, rank, gold };
     }).sort((a, b) => a.rank - b.rank || b.towns - a.towns || b.power - a.power);
     const total = Math.max(...rows.map((r) => r.power), 1);
-    const key = rows.map((r) => `${r.id}/${r.towns}/${r.armies}/${Math.round(r.power / 1000)}/${r.role}`).join('|');
+    const key = rows.map((r) => `${r.id}/${r.towns}/${r.armies}/${Math.round(r.power / 1000)}/${r.role}/${r.gold}`).join('|');
     if (this.factions.dataset.key === key) return;
     this.factions.dataset.key = key;
+    const order = rows.map((r) => `${r.id}/${r.role}`).join('|');
+    if (this.factions.dataset.order === order) {
+      // Same realms in the same order: just update counts, bars and tooltips.
+      rows.forEach((r, i) => {
+        const row = this.factions.children[i] as HTMLElement;
+        const num = row.querySelector('.army-num')!;
+        const text = `${r.towns} towns · ${r.armies} armies${r.gold === null ? '' : ` · ${r.gold}g`}`;
+        if (num.textContent !== text) num.textContent = text;
+        (row.querySelector('.bar-fill') as HTMLElement).style.width = `${(r.power / total) * 100}%`;
+        (row.querySelector('.camp-realm-name') as HTMLElement).title = r.gold === null
+          ? `${r.f.name}: raises troops for free`
+          : `${r.f.name}: ${r.gold} gold, +${c.income(r.id)} tax, -${c.upkeep(r.id)} upkeep a turn`;
+      });
+      return;
+    }
+    this.factions.dataset.order = order;
     this.factions.replaceChildren(...rows.map((r) => {
       const fill = h('div', 'bar-fill');
       fill.style.width = `${(r.power / total) * 100}%`;
@@ -284,27 +312,45 @@ export class CampaignHud {
       const sw = h('span', 'camp-swatch');
       sw.style.background = r.f.color;
       const name = h('span', 'camp-realm-name', sw, h('span', '', r.f.name), r.role ? h('span', `camp-role role-${r.role.toLowerCase()}`, r.role) : '');
-      name.title = r.f.name;
+      name.title = r.gold === null ? `${r.f.name}: raises troops for free` : `${r.f.name}: ${r.gold} gold, +${c.income(r.id)} tax, -${c.upkeep(r.id)} upkeep a turn`;
       return h('div', `army camp-legend${r.rank === 0 ? ' mine' : ''}${r.rank === 3 ? ' fallen' : ''}`,
-        h('div', 'army-row', name, h('span', 'army-num', `${r.towns} towns · ${r.armies} armies`)),
+        h('div', 'army-row', name, h('span', 'army-num', `${r.towns} towns · ${r.armies} armies${r.gold === null ? '' : ` · ${r.gold}g`}`)),
         h('div', 'bar', fill));
     }));
   }
 
+  /**
+   * The chronicle, newest first. New entries are added at the top (under their season heading) rather
+   * than rebuilding the list, and the oldest are trimmed, so a busy turn touches only what is new.
+   */
   private renderLog() {
     const entries = this.c.state.log;
     if (entries.length === this.logCount) return;
+    if (entries.length < this.logCount || this.logCount < 0) {
+      this.log.replaceChildren();
+      this.logTurn = -1;
+      this.logCount = Math.max(0, entries.length - 60);
+    }
+    const fresh = entries.slice(this.logCount);
     this.logCount = entries.length;
-    const items: HTMLElement[] = [];
+    if (!fresh.length) return;
+    const frag = document.createDocumentFragment();
+    // Newest first: walk the new entries backwards, opening a season heading where the turn changes.
     let turn = -1;
-    for (const e of entries.slice(-60).reverse()) {
+    for (let i = fresh.length - 1; i >= 0; i--) {
+      const e = fresh[i];
       if (e.turn !== turn) {
         turn = e.turn;
-        items.push(h('div', 'log-turn', this.c.seasonLabel(turn)));
+        if (turn !== this.logTurn || i < fresh.length - 1) frag.append(h('div', 'log-turn', this.c.seasonLabel(turn)));
       }
-      items.push(h('div', `log-entry log-${e.kind}`, e.text));
+      frag.append(h('div', `log-entry log-${e.kind}`, e.text));
     }
-    this.log.replaceChildren(...items);
+    // If the newest old entry is from the same season as the oldest new one, drop that old heading.
+    const first = this.log.firstElementChild;
+    if (first?.classList.contains('log-turn') && fresh.length && fresh[0].turn === this.logTurn) first.remove();
+    this.log.prepend(frag);
+    this.logTurn = entries[entries.length - 1].turn;
+    while (this.log.childElementCount > 80) this.log.lastElementChild!.remove();
   }
 
   private renderCard() {
@@ -316,7 +362,7 @@ export class CampaignHud {
     const rec = (t: string) => c.recruitsAt(t).map((r) => r.type).join(',');
     const key = a
       ? [
-        'a', a.id, a.name, a.moveLeft, a.marching, a.from, a.to, a.route.join(), a.units.map((u) => u.name + u.strength.toFixed(2)).join(),
+        'a', a.id, a.name, this.planning ? a.moveLeft : '-', a.marching, a.from, this.planning ? a.to : '-', a.route.join(), a.units.map((u) => u.name + u.strength.toFixed(2)).join(),
         [...this.picked].join(), this.planning, rec(a.from), c.armies.filter((b) => c.together(a, b)).map((b) => `${b.id}:${b.units.length}`).join(),
       ].join('|')
       : town ? ['t', town, c.state.owners[town], rec(town), this.planning, c.recruitBlock(c.player, town)].join('|') : '';
@@ -343,11 +389,14 @@ export class CampaignHud {
       fill.style.background = u.strength > 0.6 ? 'var(--good)' : u.strength > 0.3 ? 'var(--warn)' : 'var(--bad)';
       const img = h('img', 'camp-unit-icon');
       img.src = this.icon(t?.icon ?? 'infantry', f.color);
-      const row = h('div', `camp-unit${this.picked.has(i) ? ' picked' : ''}${canEdit ? ' pickable' : ''}`, img, h('div', 'camp-unit-body',
-        h('div', 'army-row', h('span', '', `${u.general ? '★ ' : ''}${u.name}`), h('span', 'army-num', `${Math.round(u.strength * 100)}%`)),
+      const unique = !!t?.traits;
+      const row = h('div', `camp-unit${this.picked.has(i) ? ' picked' : ''}${canEdit ? ' pickable' : ''}${unique ? ' unique' : ''}`, img, h('div', 'camp-unit-body',
+        h('div', 'army-row', h('span', '', `${u.general ? '★ ' : unique ? '◆ ' : ''}${u.name}`), h('span', 'army-num', `${Math.round(u.strength * 100)}%`)),
         h('div', 'bar', fill)));
+      const traits = unique ? `${t!.name} (unique): ${t!.traits!.join(', ')}` : '';
+      row.title = traits;
       if (canEdit) {
-        row.title = 'Click to pick this unit for a detachment';
+        row.title = `${traits ? `${traits}\n` : ''}Click to pick this unit for a detachment`;
         row.addEventListener('click', () => {
           if (this.picked.has(i)) this.picked.delete(i);
           else this.picked.add(i);
@@ -367,6 +416,13 @@ export class CampaignHud {
         h('div', 'card-line', h('span', '', 'March this turn'), h('b', '', `${Math.round(a.moveLeft)} of ${c.moveOf(a)}`)),
       );
       if (resting && !dest) out.push(h('div', 'card-line', h('span', '', 'Resting'), h('b', 'camp-good', `+10% a turn in ${c.names[a.from]}`)));
+    }
+    if (!a.to) {
+      const sg = c.siegeOf(a.from);
+      if (sg && sg.army.id === a.id) out.push(h('div', 'card-line', h('span', '', 'Siege'), h('b', 'camp-good', `${c.names[a.from]} falls ${sg.left ? `in ${sg.left} turn${sg.left > 1 ? 's' : ''}` : 'at the end of this turn'}`)));
+    }
+    if (!mine && c.pays(a.faction)) {
+      out.push(h('div', 'card-line', h('span', '', 'Treasury'), h('b', '', `${c.gold(a.faction)} gold · +${c.income(a.faction)} tax, -${c.upkeep(a.faction)} upkeep`)));
     }
     out.push(
       h('div', 'card-line', h('span', '', 'Strength'), h('b', '', `${a.units.length} of ${ARMY_CAP} units · power ${Math.round(c.power(a) / 1000)}k`)),
@@ -448,8 +504,8 @@ export class CampaignHud {
       const img = h('img', 'camp-unit-icon');
       img.src = this.icon(t.icon, f.color);
       const n = queued.filter((r) => r.type === type).length;
-      const b = h('button', `btn camp-recruit-btn${n ? ' on' : ''}`, img, h('span', '', `${t.name}${n ? ` ×${n}` : ''}`));
-      b.title = `Add ${t.name} (${t.category})${t.note ? `: ${t.note}` : ''}`;
+      const b = h('button', `btn camp-recruit-btn${n ? ' on' : ''}${t.traits ? ' unique' : ''}`, img, h('span', '', `${t.traits ? '◆ ' : ''}${t.name}${n ? ` ×${n}` : ''}`));
+      b.title = `Add ${t.name} (${t.category})${t.traits ? `\nUnique: ${t.traits.join(', ')}` : ''}${t.note ? `\n${t.note}` : ''}`;
       b.disabled = !this.planning || !!block || full;
       b.addEventListener('click', () => this.on.recruit(town, type));
       grid.append(b);
@@ -599,7 +655,9 @@ function helpList(c: Campaign): HTMLElement {
     `Your towns and armies wear your colour with a gold frame${allies.length ? `; allied ones (${allies.join(', ')}) are marked as allies and never fight you` : ''}. Press Tab for the whole map coloured by realm.`,
     'Armies that meet on the road fight. Take command to fight on the battlefield yourself, or auto-resolve it.',
     'Casualties carry over. The loser falls back to its nearest town. Armies resting in their own towns recover 10% a turn.',
-    'March into an undefended enemy town to take it. Recruit up to 10 units per town each turn.',
+    'March into an enemy town to lay siege: it falls if you hold it through the next turn (two for a capital), unless its owner relieves it. Recruit up to 10 units per town each turn.',
+    ...(c.data.economy ? [`Every other realm taxes its towns and pays gold to raise and keep its troops; when a treasury runs dry, troops desert. ${c.data.factions[c.player].name} levies cost nothing.`] : []),
+    'Every realm fields one or two unique units (◆) with their own buffs and debuffs: hover one to see them.',
     `Win by taking every rival capital (${rivalCaps.join(', ')}). Lose if ${c.names[me.capital]} falls or your last army is destroyed.`,
     'Map: drag or WASD to pan, wheel to zoom.',
   ];

@@ -114,6 +114,10 @@ export interface UnitType {
   height: number;
   icon: string;
   note?: string;
+  /** Unique units: the kingdom that fields them, the type they improve on, and their buffs and debuffs. */
+  kingdom?: string;
+  base?: string;
+  traits?: string[];
 }
 
 export interface ScenarioUnit {

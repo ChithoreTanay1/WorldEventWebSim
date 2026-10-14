@@ -1,0 +1,64 @@
+{
+  "id": "kalinga-elephants",
+  "name": "Kalinga War Elephants",
+  "category": "elephant",
+  "figures": 12,
+  "canCapture": false,
+  "captureRate": 0,
+  "hp": 770,
+  "org": 422,
+  "stamina": 1100,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.3,
+    "rally": 0.55,
+    "shatter": -0.3
+  },
+  "walk": 65,
+  "run": 105,
+  "formations": {
+    "elephant": [
+      44,
+      18
+    ]
+  },
+  "defaultFormation": "elephant",
+  "melee": {
+    "attack": 70,
+    "defense": 50,
+    "weapon": {
+      "name": "Tusks and howdah",
+      "orgRatio": 420,
+      "bimTicks": 6,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher",
+        "cavalry",
+        "elephant"
+      ]
+    },
+    "chargeBonus": 150,
+    "chargeResistance": 0.3,
+    "runChargeResMod": 0.2,
+    "chargePenetration": 0.8,
+    "flankPenBonus": 0.3,
+    "flankOrgMod": 0.6
+  },
+  "orgRadius": 100,
+  "orgRadiusBonus": 10,
+  "panicDistance": 50,
+  "visibility": 1,
+  "causesFear": true,
+  "stampede": true,
+  "height": 4.2,
+  "icon": "elephant",
+  "note": "Kalinga's famous elephant corps: a crushing charge, but the beasts are skittish when hurt.",
+  "kingdom": "kalinga",
+  "base": "war-elephants",
+  "traits": [
+    "+25% charge",
+    "+10% men (HP)",
+    "-12% organization"
+  ]
+}

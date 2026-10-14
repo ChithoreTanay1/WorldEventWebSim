@@ -366,6 +366,7 @@ export class Hud {
         ['MEL', `${t.melee.attack}/${t.melee.defense}`], ['CHG', t.melee.chargeBonus], ['C.RES', t.melee.chargeResistance],
         ['RNG', t.ranged ? `${t.ranged.attack} · ${maxRange(t.ranged.weapon)}m` : '—'], ['MOVE', `${t.walk}/${t.run}`], ['RAD', `${t.orgRadius}m +${t.orgRadiusBonus}`],
       ].map(([k, v]) => h('div', 'cs', h('span', '', String(k)), h('b', '', String(v))))),
+      t.traits ? h('div', 'card-traits', ...t.traits.map((x) => h('span', `trait ${x.startsWith('-') ? 'debuff' : 'buff'}`, x))) : '',
       h('p', 'card-note', t.note ?? ''),
     );
   }

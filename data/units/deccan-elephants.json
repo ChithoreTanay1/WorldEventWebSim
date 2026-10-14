@@ -1,0 +1,64 @@
+{
+  "id": "deccan-elephants",
+  "name": "Deccan Elephants",
+  "category": "elephant",
+  "figures": 12,
+  "canCapture": false,
+  "captureRate": 0,
+  "hp": 840,
+  "org": 480,
+  "stamina": 1265,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.3,
+    "rally": 0.55,
+    "shatter": -0.3
+  },
+  "walk": 58,
+  "run": 105,
+  "formations": {
+    "elephant": [
+      44,
+      18
+    ]
+  },
+  "defaultFormation": "elephant",
+  "melee": {
+    "attack": 70,
+    "defense": 50,
+    "weapon": {
+      "name": "Tusks and howdah",
+      "orgRatio": 420,
+      "bimTicks": 6,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher",
+        "cavalry",
+        "elephant"
+      ]
+    },
+    "chargeBonus": 120,
+    "chargeResistance": 0.3,
+    "runChargeResMod": 0.2,
+    "chargePenetration": 0.8,
+    "flankPenBonus": 0.3,
+    "flankOrgMod": 0.6
+  },
+  "orgRadius": 100,
+  "orgRadiusBonus": 10,
+  "panicDistance": 50,
+  "visibility": 1,
+  "causesFear": true,
+  "stampede": true,
+  "height": 4.2,
+  "icon": "elephant",
+  "note": "Big forest elephants of the Vakataka hills. Enormous staying power, slow.",
+  "kingdom": "vakataka",
+  "base": "war-elephants",
+  "traits": [
+    "+20% men (HP)",
+    "+15% stamina",
+    "-10% walking speed"
+  ]
+}

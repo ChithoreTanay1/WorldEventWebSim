@@ -21,7 +21,10 @@ export class MapGeo {
   readonly nx: number;
   readonly nz: number;
   private readonly heights: Float32Array;
-  private readonly riverSegs: { name: string; segs: Seg[] }[];
+  /** Rivers as segments, each with a bounding box so far-away rivers are skipped cheaply. */
+  private readonly riverSegs: { name: string; segs: Seg[]; box: [number, number, number, number] }[];
+  /** Distance to the nearest river at every grid vertex (baked with the heights). */
+  private readonly riverGrid: Float32Array;
   private readonly ridge: XZ[];
   private readonly hills: { x: number; z: number; s: number; h: number }[];
   private readonly deserts: { x: number; z: number; r: number }[];
@@ -35,7 +38,8 @@ export class MapGeo {
       const p = r.points.map((q) => this.project(q));
       const segs: Seg[] = [];
       for (let i = 0; i < p.length - 1; i++) segs.push([p[i].x, p[i].z, p[i + 1].x, p[i + 1].z]);
-      return { name: r.name, segs };
+      const xs = p.map((q) => q.x), zs = p.map((q) => q.z);
+      return { name: r.name, segs, box: [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)] as [number, number, number, number] };
     });
     this.ridge = data.ridge.map((q) => this.project(q));
     this.hills = data.hills.map((hl) => ({ ...this.project(hl.pos), s: (hl.radius * data.scale) / 2, h: hl.height }));
@@ -44,8 +48,14 @@ export class MapGeo {
     this.nx = Math.round(this.width / GEO_CELL);
     this.nz = Math.round(this.depth / GEO_CELL);
     this.heights = new Float32Array((this.nx + 1) * (this.nz + 1));
-    for (let iz = 0; iz <= this.nz; iz++) {
-      for (let ix = 0; ix <= this.nx; ix++) this.heights[iz * (this.nx + 1) + ix] = this.rawHeight(ix * GEO_CELL, iz * GEO_CELL);
+    this.riverGrid = new Float32Array((this.nx + 1) * (this.nz + 1));
+    for (let iz = 0, i = 0; iz <= this.nz; iz++) {
+      for (let ix = 0; ix <= this.nx; ix++, i++) {
+        const x = ix * GEO_CELL, z = iz * GEO_CELL;
+        const d = this.riverDistance(x, z).d;
+        this.riverGrid[i] = d;
+        this.heights[i] = this.rawHeight(x, z, d);
+      }
     }
   }
 
@@ -73,6 +83,9 @@ export class MapGeo {
   riverDistance(x: number, z: number): { d: number; name: string } {
     let best = Infinity, name = '';
     for (const r of this.riverSegs) {
+      // Skip a river whose bounding box is already further away than the best so far.
+      const bx = Math.max(r.box[0] - x, 0, x - r.box[2]), bz = Math.max(r.box[1] - z, 0, z - r.box[3]);
+      if (bx * bx + bz * bz >= best * best) continue;
       for (const [ax, az, bx, bz] of r.segs) {
         const dx = bx - ax, dz = bz - az;
         const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
@@ -119,11 +132,10 @@ export class MapGeo {
     return h;
   }
 
-  private rawHeight(x: number, z: number): number {
+  private rawHeight(x: number, z: number, d: number): number {
     let h = 1 + 0.5 * Math.sin(x * 0.013) * Math.cos(z * 0.011) + 0.3 * Math.sin((x - z) * 0.031);
     h += this.relief(x, z);
     if (this.inSea(x, z)) return MAP_WATER - 3;
-    const d = this.riverDistance(x, z).d;
     if (d < RIVER_HALF + RIVER_BANK) {
       const t = Math.max(0, Math.min(1, (RIVER_HALF + RIVER_BANK - d) / RIVER_BANK));
       const s = t * t * (3 - 2 * t);
@@ -145,6 +157,18 @@ export class MapGeo {
   }
 
   /** Grid height by vertex index (renderer). */
+  /** Distance to the nearest river at a grid vertex. */
+  gridRiver(ix: number, iz: number): number {
+    return this.riverGrid[iz * (this.nx + 1) + ix];
+  }
+
+  /** Distance to the nearest river, from the baked grid (nearest vertex; for scattering, colouring). */
+  riverNear(x: number, z: number): number {
+    const ix = Math.max(0, Math.min(this.nx, Math.round(x / GEO_CELL)));
+    const iz = Math.max(0, Math.min(this.nz, Math.round(z / GEO_CELL)));
+    return this.riverGrid[iz * (this.nx + 1) + ix];
+  }
+
   gridHeight(ix: number, iz: number): number {
     return this.heights[iz * (this.nx + 1) + ix];
   }

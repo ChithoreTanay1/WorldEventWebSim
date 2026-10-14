@@ -221,7 +221,7 @@ export class CampaignMode {
     if (!this.view.political) {
       this.savedView = { x: cam.target.x, z: cam.target.z, d: cam.distance };
       this.view.setPolitical(true);
-      void cam.flyTo(this.c.geo.width / 2, this.c.geo.depth / 2 + 120, 1750, 0.7);
+      void cam.flyTo(this.c.geo.width / 2, this.c.geo.depth / 2 + this.c.geo.depth * 0.06, cam.overview, 0.7);
     } else {
       this.view.setPolitical(false);
       const v = this.savedView;
@@ -254,8 +254,10 @@ export class CampaignMode {
       if (!this.c.army(enc.player) || !this.c.army(enc.enemy)) continue;
       // Wars between other realms are settled off-screen.
       if (enc.ai) {
+        const t = performance.now();
         this.c.applyOutcome(enc, this.c.autoResolve(enc));
         this.view.refreshOwners();
+        perf.add('ai battles', performance.now() - t);
         continue;
       }
       // A battle of yours takes the camera to it: leave the realms view first.
@@ -275,9 +277,15 @@ export class CampaignMode {
       });
       await this.hud.showOutcome(`Battle near ${this.c.names[enc.place]}`, out.winner === null ? null : out.winner === this.c.player, lines);
     }
+    let t = performance.now();
     this.c.finishTurn();
+    perf.add('end of turn', performance.now() - t);
+    t = performance.now();
     this.view.refreshOwners();
+    perf.add('recolour', performance.now() - t);
+    t = performance.now();
     save(this.c.data, this.c.state);
+    perf.add('save', performance.now() - t);
     if (this.c.state.winner) {
       this.phase = 'over';
       this.hud.showEnd(this.c.state.winner === this.c.player);
@@ -389,9 +397,11 @@ export class CampaignMode {
     if (!t) return null;
     const s = this.c.data.settlements.find((x) => x.id === t)!;
     const owner = this.c.data.factions[this.c.state.owners[t]];
+    const sg = this.c.siegeOf(t);
+    const siege = sg ? ` · besieged by ${sg.army.name}, falls ${sg.left ? `in ${sg.left} turn${sg.left > 1 ? 's' : ''}` : 'this turn'}` : '';
     const q = this.c.recruitsAt(t).filter((r) => r.faction === this.c.player).length;
     const raising = q ? ` · raising ${q} unit${q > 1 ? 's' : ''}` : '';
-    return `${s.name} · held by ${owner?.name ?? 'nobody'}${raising}${s.note ? ` · ${s.note}` : ''}`;
+    return `${s.name} · held by ${owner?.name ?? 'nobody'}${siege}${raising}${s.note ? ` · ${s.note}` : ''}`;
   }
 
   private panWithKeys(dt: number) {

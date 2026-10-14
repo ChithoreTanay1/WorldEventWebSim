@@ -1,0 +1,101 @@
+{
+  "id": "gupta-imperial-archers",
+  "name": "Imperial Archers",
+  "category": "missile",
+  "figures": 120,
+  "canCapture": true,
+  "captureRate": 2,
+  "hp": 600,
+  "org": 560,
+  "stamina": 1800,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.25,
+    "rally": 0.5,
+    "shatter": -0.25
+  },
+  "walk": 70,
+  "run": 105,
+  "formations": {
+    "column": [
+      30,
+      24
+    ],
+    "line": [
+      58,
+      9
+    ]
+  },
+  "defaultFormation": "line",
+  "melee": {
+    "attack": 20,
+    "defense": 15,
+    "weapon": {
+      "name": "Knife",
+      "orgRatio": 290,
+      "bimTicks": 4,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher"
+      ]
+    },
+    "chargeBonus": 10,
+    "chargeResistance": -0.2,
+    "runChargeResMod": -1.1,
+    "chargePenetration": 0.2,
+    "flankPenBonus": 0.2,
+    "flankOrgMod": 1.0
+  },
+  "ranged": {
+    "attack": 19,
+    "weapon": {
+      "name": "Long bow",
+      "orgRatio": 380,
+      "enfilade": true,
+      "effective": 126.5,
+      "close": 57.5,
+      "bands": [
+        [
+          0.0,
+          46.0,
+          2.5,
+          1.8
+        ],
+        [
+          46.0,
+          103.5,
+          1.8,
+          0.6
+        ],
+        [
+          103.5,
+          149.5,
+          0.6,
+          -0.3
+        ],
+        [
+          149.5,
+          195.5,
+          -0.3,
+          -0.7
+        ]
+      ]
+    },
+    "ammo": 72
+  },
+  "orgRadius": 90,
+  "orgRadiusBonus": 6,
+  "panicDistance": 45,
+  "visibility": 1,
+  "height": 1.7,
+  "icon": "bow",
+  "note": "The archer-kings of the Gupta coins: picked bowmen with long bamboo bows. Hit harder and further, but fragile if caught.",
+  "kingdom": "gupta",
+  "base": "archers",
+  "traits": [
+    "+20% missile damage",
+    "+15% missile range",
+    "-15% melee defence"
+  ]
+}

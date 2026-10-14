@@ -30,7 +30,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* top bar */
 .topbar {
   position: absolute; top: 0; left: 0; right: 0; height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--edge); backdrop-filter: blur(3px);
+  padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--edge);
 }
 .title { min-width: 0; }
 .title-name { font-family: var(--serif); font-size: 17px; color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -299,3 +299,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .camp-legend .army-num { flex: none; white-space: nowrap; font-size: 11px; }
 .camp-role { flex: none; }
 .camp-realm { max-width: 40vw; overflow: hidden; text-overflow: ellipsis; }
+
+/* campaign: realms legend scrolls once there are many realms; sieges; unique troops */
+.side-panel .strength { max-height: 46vh; overflow-y: auto; }
+.camp-town.besieged { box-shadow: 0 0 0 2px #e06a55; }
+.camp-town.besieged::before { content: '⚔'; margin-right: 3px; color: #e06a55; font-size: 11px; }
+.camp-unit.unique .army-row span:first-child, .camp-recruit-btn.unique span { color: #f2c96b; }
+.card-traits { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 2px; }
+.trait { font-size: 11px; padding: 1px 6px; border-radius: 3px; border: 1px solid; }
+.trait.buff { color: var(--good); border-color: rgba(143, 191, 106, 0.5); }
+.trait.debuff { color: var(--bad); border-color: rgba(224, 106, 85, 0.5); }

@@ -1,0 +1,68 @@
+{
+  "id": "yaudheya-warriors",
+  "name": "Yaudheya Warriors",
+  "category": "infantry",
+  "figures": 140,
+  "canCapture": true,
+  "captureRate": 2,
+  "hp": 800,
+  "org": 784,
+  "stamina": 1600,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.25,
+    "rally": 0.5,
+    "shatter": -0.4
+  },
+  "walk": 65,
+  "run": 100,
+  "formations": {
+    "column": [
+      30,
+      26
+    ],
+    "line": [
+      56,
+      10
+    ],
+    "ring": [
+      28,
+      28
+    ]
+  },
+  "defaultFormation": "line",
+  "melee": {
+    "attack": 62,
+    "defense": 54,
+    "weapon": {
+      "name": "Sword",
+      "orgRatio": 320,
+      "bimTicks": 4,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher"
+      ]
+    },
+    "chargeBonus": 55,
+    "chargeResistance": 0.5,
+    "runChargeResMod": -1.1,
+    "chargePenetration": 0.65,
+    "flankPenBonus": 0.55,
+    "flankOrgMod": 1.0
+  },
+  "orgRadius": 90,
+  "orgRadiusBonus": 10,
+  "panicDistance": 40,
+  "visibility": 1,
+  "height": 1.8,
+  "icon": "sword",
+  "note": "\"Victorious among warriors\": the martial republic's sworn fighters. Aggressive and proud, lightly armoured.",
+  "kingdom": "yaudheya",
+  "base": "heavy-infantry",
+  "traits": [
+    "+20% melee attack",
+    "+12% organization",
+    "-10% melee defence"
+  ]
+}

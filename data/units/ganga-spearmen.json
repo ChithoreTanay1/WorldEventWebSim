@@ -1,0 +1,69 @@
+{
+  "id": "ganga-spearmen",
+  "name": "Ganga Spearmen",
+  "category": "infantry",
+  "figures": 160,
+  "canCapture": true,
+  "captureRate": 2,
+  "hp": 900,
+  "org": 520,
+  "stamina": 1800,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.25,
+    "rally": 0.5,
+    "shatter": -0.25
+  },
+  "walk": 70,
+  "run": 105,
+  "formations": {
+    "column": [
+      34,
+      26
+    ],
+    "line": [
+      60,
+      10
+    ],
+    "ring": [
+      30,
+      30
+    ]
+  },
+  "defaultFormation": "line",
+  "melee": {
+    "attack": 33,
+    "defense": 50,
+    "weapon": {
+      "name": "Spear",
+      "orgRatio": 330,
+      "bimTicks": 4,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher"
+      ]
+    },
+    "chargeBonus": 35,
+    "chargeResistance": 0.5,
+    "runChargeResMod": -1.1,
+    "chargePenetration": 0.5,
+    "flankPenBonus": 0.4,
+    "flankOrgMod": 1.0,
+    "antiCavalry": 0.47
+  },
+  "orgRadius": 90,
+  "orgRadiusBonus": 7,
+  "panicDistance": 40,
+  "visibility": 1,
+  "height": 1.7,
+  "icon": "spear",
+  "note": "Tough spearmen of the Kolar plateau: tireless and good against horse, not strong attackers.",
+  "kingdom": "ganga",
+  "base": "levy-spearmen",
+  "traits": [
+    "+20% stamina",
+    "+0.12 resistance to horse and elephant charges",
+    "-8% melee attack"
+  ]
+}

@@ -140,3 +140,126 @@ describe('the rise of the Guptas', () => {
     }
   });
 });
+
+describe('south India, the Parthians and unique troops', () => {
+  it('has the southern kingdoms and the Parthians west of the Kushans', () => {
+    for (const f of ['pallava', 'salankayana', 'kalinga', 'kosala', 'kadamba', 'ganga', 'kalabhra', 'chera', 'parthian']) expect(data.factions[f], f).toBeDefined();
+    const c = fresh();
+    expect(c.pos.zarang.x).toBeLessThan(c.pos.purushapura.x);
+    expect(c.pos.kanchipuram.z).toBeGreaterThan(c.pos.pataliputra.z);
+  });
+
+  it('every realm fields at least one unique unit with its own buffs and debuffs', () => {
+    for (const [id, f] of Object.entries(data.factions)) {
+      const unique = f.recruits.filter((t) => types[t]?.kingdom === id);
+      expect(unique.length, id).toBeGreaterThanOrEqual(1);
+      expect(unique.length, id).toBeLessThanOrEqual(2);
+      for (const t of unique) {
+        const u = types[t];
+        expect(u.traits!.some((x) => x.startsWith('+')), t).toBe(true);
+        expect(u.traits!.some((x) => x.startsWith('-')), t).toBe(true);
+        expect(types[u.base!], t).toBeDefined();
+      }
+    }
+  });
+});
+
+describe('sieges', () => {
+  function besiege(town: string, from: string) {
+    const c = fresh();
+    const g = c.armiesOf('gupta')[0];
+    c.state.armies = [g];
+    g.from = from;
+    c.setDestination(g, town);
+    for (let t = 0; t < 6 && !c.state.sieges?.[town]; t++) {
+      for (let i = 0; i < 1000 && c.stepMovement(3); i++);
+      if (!c.state.sieges?.[town]) c.finishTurn();
+    }
+    return { c, g };
+  }
+
+  it('a town falls after its besieger holds it through a turn, not on arrival', () => {
+    const { c } = besiege('champa', 'pataliputra');
+    expect(c.state.owners.champa).toBe('vanga');
+    expect(c.siegeOf('champa')!.left).toBe(1);
+    c.finishTurn();
+    expect(c.state.owners.champa).toBe('vanga');
+    c.finishTurn();
+    expect(c.state.owners.champa).toBe('gupta');
+  });
+
+  it('a capital holds out a turn longer', () => {
+    const { c } = besiege('gauda', 'champa');
+    c.finishTurn();
+    c.finishTurn();
+    expect(c.state.owners.gauda).toBe('vanga');
+    c.finishTurn();
+    expect(c.state.owners.gauda).toBe('gupta');
+  });
+
+  it('marching away lifts the siege', () => {
+    const { c, g } = besiege('champa', 'pataliputra');
+    c.setDestination(g, 'pataliputra');
+    for (let i = 0; i < 1000 && c.stepMovement(3); i++);
+    c.finishTurn();
+    c.finishTurn();
+    expect(c.state.owners.champa).toBe('vanga');
+    expect(c.state.sieges?.champa).toBeUndefined();
+  });
+});
+
+describe('money', () => {
+  it('the Guptas recruit for free; other realms pay, and get a refund on cancel', () => {
+    const c = fresh();
+    expect(c.pays('gupta')).toBe(false);
+    expect(c.pays('naga')).toBe(true);
+    expect(c.queueRecruit('gupta', 'gaya', 'war-elephants')).toBe(true);
+    const g0 = c.gold('naga');
+    expect(c.queueRecruit('naga', 'vidisha', 'war-elephants')).toBe(true);
+    expect(c.gold('naga')).toBe(g0 - c.costOf('war-elephants'));
+    c.cancelRecruit('vidisha');
+    expect(c.gold('naga')).toBe(g0);
+  });
+
+  it('a realm cannot raise what it cannot afford', () => {
+    const c = fresh();
+    c.state.gold!.naga = c.costOf('levy-spearmen') - 1;
+    expect(c.queueRecruit('naga', 'vidisha', 'levy-spearmen')).toBe(false);
+  });
+
+  it('towns pay taxes, troops cost upkeep, and unpaid troops desert', () => {
+    const c = fresh();
+    const g0 = c.gold('kalabhra');
+    const net = c.income('kalabhra') - c.upkeep('kalabhra');
+    c.finishTurn();
+    expect(c.gold('kalabhra')).toBe(g0 + net);
+    // Strip the Kalabhras of their towns: no income, so their army melts away.
+    for (const t of ['madurai', 'uraiyur']) c.state.owners[t] = 'chera';
+    c.state.gold!.kalabhra = 0;
+    const units = c.armiesOf('kalabhra').reduce((s, a) => s + a.units.length, 0);
+    c.finishTurn();
+    expect(c.armiesOf('kalabhra').reduce((s, a) => s + a.units.length, 0)).toBeLessThan(units);
+    expect(c.gold('kalabhra')).toBe(0);
+  });
+});
+
+describe('realms at war with each other', () => {
+  it('rival realms pick war targets and fight each other while you sit still', () => {
+    const c = fresh();
+    let aiBattles = 0;
+    for (let t = 0; t < 25 && !c.state.winner; t++) {
+      c.beginMovement();
+      for (let i = 0; i < 3000 && c.stepMovement(3); i++);
+      for (const enc of c.encounters) {
+        if (!c.army(enc.player) || !c.army(enc.enemy)) continue;
+        if (enc.ai) aiBattles++;
+        c.applyOutcome(enc, c.autoResolve(enc));
+      }
+      c.finishTurn();
+    }
+    expect(aiBattles).toBeGreaterThan(5);
+    expect(Object.keys(c.state.wars ?? {}).length).toBeGreaterThan(5);
+    const changed = data.settlements.filter((s) => c.state.owners[s.id] !== s.owner && c.state.owners[s.id] !== 'gupta' && s.owner !== 'gupta');
+    expect(changed.length).toBeGreaterThan(2);
+  });
+});

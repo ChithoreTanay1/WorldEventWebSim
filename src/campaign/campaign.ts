@@ -12,6 +12,9 @@ export const CONTACT = 22;
 /** Units weaker than this after a battle are gone. */
 const MIN_STRENGTH = 0.06;
 const REPLENISH = 0.1;
+/** Full turns an army must hold a siege before the town falls (a capital holds out longer). */
+export const SIEGE_TURNS = 1;
+export const CAPITAL_SIEGE_TURNS = 2;
 /** Most units one army can hold (the battle deploys up to two ranks of eight plus wings). */
 export const ARMY_CAP = 16;
 /** Armies closer than this count as standing together (merging). */
@@ -67,6 +70,10 @@ export class Campaign {
       version: 1, dataId: data.id, turn: 0, owners: {}, armies: [], nextArmyId: 1, log: [], winner: null, recruits: [],
     };
     for (const s of data.settlements) state.owners[s.id] = s.owner;
+    if (data.economy) {
+      state.gold = {};
+      for (const f of Object.keys(data.factions)) if (!data.economy.exempt.includes(f)) state.gold[f] = data.economy.startGold;
+    }
     for (const a of data.armies) spawnArmy(state, a.name, a.faction, a.at, a.units);
     return state;
   }
@@ -87,6 +94,11 @@ export class Campaign {
 
   armiesOf(faction: string): Army[] {
     return this.state.armies.filter((a) => a.faction === faction);
+  }
+
+  /** Settlements one road away. */
+  roadsFrom(n: string): string[] {
+    return (this.adj.get(n) ?? []).map((e) => e.to);
   }
 
   roadLen(a: string, b: string): number {
@@ -235,6 +247,69 @@ export class Campaign {
     return { points, reach: a.moveLeft };
   }
 
+  // ---------------------------------------------------------------- money
+
+  /** Does this realm pay for its troops? (The player's realm is exempt in the Gupta campaign.) */
+  pays(faction: string): boolean {
+    const e = this.data.economy;
+    return !!e && !e.exempt.includes(faction);
+  }
+
+  costOf(type: string): number {
+    return this.data.economy?.costs[type] ?? 100;
+  }
+
+  gold(faction: string): number {
+    return this.state.gold?.[faction] ?? 0;
+  }
+
+  /** Tax income per turn: every town held, with a bonus for holding one's own capital. */
+  income(faction: string): number {
+    const e = this.data.economy;
+    if (!e) return 0;
+    const cap = this.data.factions[faction]?.capital;
+    let g = 0;
+    for (const [id, o] of Object.entries(this.state.owners)) if (o === faction) g += id === cap ? e.income.capital : e.income.town;
+    return g;
+  }
+
+  /** Gold per turn to keep a realm's armies in the field. */
+  upkeep(faction: string): number {
+    const e = this.data.economy;
+    if (!e) return 0;
+    let g = 0;
+    for (const a of this.armiesOf(faction)) for (const u of a.units) g += this.costOf(u.type) * e.upkeep;
+    return Math.round(g);
+  }
+
+  /**
+   * Collect taxes and pay the troops. A realm that can't pay loses its weakest units to desertion
+   * until what it keeps is affordable.
+   */
+  private settleTreasuries() {
+    const st = this.state;
+    if (!this.data.economy || !st.gold) return;
+    for (const f of Object.keys(st.gold)) {
+      st.gold[f] += this.income(f) - this.upkeep(f);
+      if (st.gold[f] >= 0) continue;
+      let lost = 0;
+      while (this.upkeep(f) > this.income(f) && this.armiesOf(f).length) {
+        // The weakest unit of the realm (lowest strength, then cheapest) goes home.
+        let worst: { a: Army; i: number } | null = null;
+        for (const a of this.armiesOf(f)) a.units.forEach((u, i) => {
+          if (!worst || u.strength < worst.a.units[worst.i].strength) worst = { a, i };
+        });
+        const w = worst as { a: Army; i: number } | null;
+        if (!w) break;
+        w.a.units.splice(w.i, 1);
+        if (!w.a.units.length) this.removeArmy(w.a);
+        lost++;
+      }
+      st.gold[f] = 0;
+      if (lost) this.log(`Unpaid, ${lost} unit${lost > 1 ? 's' : ''} of the ${this.data.factions[f].name} desert.`, this.kindFor(f, false));
+    }
+  }
+
   // ---------------------------------------------------------------- recruiting
 
   /** Why a town cannot raise troops right now, or null if it can. */
@@ -250,10 +325,15 @@ export class Campaign {
     return this.state.recruits.filter((r) => r.town === town);
   }
 
-  /** Queue a unit in a town if a slot is free. Every unit is ready next turn, whatever the type. */
+  /** Queue a unit in a town if a slot is free (and, for realms that pay, the treasury can afford it). */
   queueRecruit(faction: string, town: string, type: string): boolean {
     if (this.recruitBlock(faction, town) || !this.data.factions[faction].recruits.includes(type) || !this.types[type]) return false;
     if (this.recruitsAt(town).length >= RECRUIT_SLOTS) return false;
+    if (this.pays(faction)) {
+      const cost = this.costOf(type);
+      if (this.gold(faction) < cost) return false;
+      this.state.gold![faction] -= cost;
+    }
     this.state.recruits.push({ town, faction, type });
     return true;
   }
@@ -262,6 +342,8 @@ export class Campaign {
   cancelRecruit(town: string, slot?: number) {
     const mine = this.recruitsAt(town);
     const drop = new Set(slot === undefined ? mine : mine.slice(slot, slot + 1));
+    // Cancelled recruits are refunded.
+    for (const r of drop) if (this.pays(r.faction)) this.state.gold![r.faction] += this.costOf(r.type);
     this.state.recruits = this.state.recruits.filter((r) => !drop.has(r));
   }
 
@@ -376,18 +458,61 @@ export class Campaign {
     }
   }
 
-  /** Reaching a settlement: take it if it is the enemy's and nobody defends it. True = the army stops. */
+  /**
+   * Reaching an enemy town: the army stops and lays siege. The town falls if the army still holds it
+   * after a full turn (two for a capital), which gives the owner time to come and relieve it.
+   */
   private arrive(a: Army): boolean {
     const s = a.from;
     const owner = this.state.owners[s];
     if (this.allied(owner, a.faction)) return false;
     if (this.hostileNear(a.faction, this.pos[s].x, this.pos[s].z, CONTACT).length) return true;
-    this.state.owners[s] = a.faction;
-    const mine = a.faction === this.player;
-    const lost = this.friendly(owner) && !this.friendly(a.faction);
-    this.log(`${a.name} ${mine ? 'takes' : 'seizes'} ${this.names[s]}${mine ? '' : ` from the ${this.data.factions[owner]?.name ?? 'locals'}`}.`,
-      lost ? 'bad' : this.kindFor(a.faction, true));
+    const sieges = (this.state.sieges ??= {});
+    if (sieges[s]?.army !== a.id) {
+      sieges[s] = { army: a.id, since: this.state.turn };
+      const turns = this.siegeTurns(s);
+      if (this.friendly(owner) || this.friendly(a.faction)) {
+        this.log(`${a.name} lays siege to ${this.names[s]}: it falls in ${turns} turn${turns > 1 ? 's' : ''} unless relieved.`,
+          this.friendly(owner) && !this.friendly(a.faction) ? 'bad' : this.kindFor(a.faction, true));
+      }
+    }
     return true;
+  }
+
+  siegeTurns(town: string): number {
+    const owner = this.state.owners[town];
+    return this.data.factions[owner]?.capital === town ? CAPITAL_SIEGE_TURNS : SIEGE_TURNS;
+  }
+
+  /** Who is besieging a town, and how many more turns it holds out (0 = falls at this turn's end). */
+  siegeOf(town: string): { army: Army; left: number } | null {
+    const sg = this.state.sieges?.[town];
+    const a = sg ? this.army(sg.army) : undefined;
+    if (!sg || !a) return null;
+    return { army: a, left: Math.max(0, sg.since + this.siegeTurns(town) - this.state.turn) };
+  }
+
+  /** End of turn: towns whose besiegers held on long enough fall; broken sieges are lifted. */
+  private resolveSieges() {
+    const st = this.state;
+    for (const [town, sg] of Object.entries(st.sieges ?? {})) {
+      const a = this.army(sg.army);
+      const owner = st.owners[town];
+      const holding = a && !a.to && a.from === town && !this.allied(owner, a.faction);
+      const p = this.pos[town];
+      if (!a || !holding || this.hostileNear(a.faction, p.x, p.z, CONTACT).length) {
+        delete st.sieges![town];
+        continue;
+      }
+      if (st.turn - sg.since < this.siegeTurns(town)) continue;
+      st.owners[town] = a.faction;
+      delete st.sieges![town];
+      const mine = a.faction === this.player;
+      const lost = this.friendly(owner) && !this.friendly(a.faction);
+      this.log(`${a.name} ${mine ? 'takes' : 'seizes'} ${this.names[town]}${mine ? '' : ` from the ${this.data.factions[owner]?.name ?? 'locals'}`}.`,
+        lost ? 'bad' : this.kindFor(a.faction, true));
+      // Recruits being raised there are lost with the town (and refunded to nobody).
+    }
   }
 
   private checkContacts() {
@@ -479,18 +604,26 @@ export class Campaign {
   /** After movement and battles: recover, reinforce, check victory, next turn. */
   finishTurn() {
     const st = this.state;
+    this.resolveSieges();
     this.completeRecruits();
     // Armies resting in a town they hold recover, including one they took this turn.
     for (const a of this.armies) {
       if (a.to || st.owners[a.from] !== a.faction) continue;
       for (const u of a.units) u.strength = Math.min(1, u.strength + REPLENISH);
     }
+    this.settleTreasuries();
     st.turn++;
     for (const r of this.data.reinforcements) {
       if (st.turn % r.every !== 0 || st.owners[r.at] !== r.faction) continue;
       if (this.armiesOf(r.faction).length >= r.maxArmies) continue;
       const p = this.pos[r.at];
       if (this.hostileNear(r.faction, p.x, p.z, CONTACT * 2).length) continue;
+      // A muster is paid for like any other levy by realms that pay.
+      if (this.pays(r.faction)) {
+        const cost = r.units.reduce((s, u) => s + this.costOf(u.type), 0);
+        if (this.gold(r.faction) < cost) continue;
+        st.gold![r.faction] -= cost;
+      }
       spawnArmy(st, r.name, r.faction, r.at, r.units);
       this.log(`${r.name} musters at ${this.names[r.at]}.`, r.faction === this.player ? 'good' : 'info');
     }
@@ -538,6 +671,10 @@ export class Campaign {
   /** Set movement for the first turn (fresh state) or after loading. */
   prepareTurn() {
     this.state.recruits ??= [];
+    if (this.data.economy && !this.state.gold) {
+      this.state.gold = {};
+      for (const f of Object.keys(this.data.factions)) if (this.pays(f)) this.state.gold[f] = this.data.economy.startGold;
+    }
     for (const a of this.armies) if (!(a.moveLeft >= 0)) a.moveLeft = this.moveOf(a);
   }
 }

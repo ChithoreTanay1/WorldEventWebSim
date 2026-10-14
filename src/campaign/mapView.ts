@@ -15,7 +15,6 @@ import { GEO_CELL, MAP_WATER, type MapGeo, type XZ } from './geo';
 
 const SKY = '#b7c3c4';
 const MIN_DIST = 70;
-const MAX_DIST = 1500;
 
 /** Orbit camera fixed to face north; tilts lower as it zooms in, like a strategy map. */
 export class MapCamera {
@@ -25,7 +24,17 @@ export class MapCamera {
   private s = { x: 0, z: 0, d: 700 };
   private tween: { from: { x: number; z: number; d: number }; to: { x: number; z: number; d: number }; t: number; dur: number; done: () => void } | null = null;
 
-  constructor(private readonly geo: MapGeo) {}
+  /** Furthest zoom: enough to see the whole map. */
+  readonly maxDist: number;
+
+  constructor(private readonly geo: MapGeo) {
+    this.maxDist = Math.max(1500, this.overview);
+  }
+
+  /** Camera distance that shows the whole map. */
+  get overview(): number {
+    return Math.max(this.geo.width * 0.98, this.geo.depth * 1.12);
+  }
 
   static pitchFor(d: number): number {
     const t = Math.max(0, Math.min(1, (d - MIN_DIST) / (900 - MIN_DIST)));
@@ -47,7 +56,7 @@ export class MapCamera {
 
   zoom(factor: number, toward?: XZ) {
     if (this.tween) return;
-    const nd = Math.max(MIN_DIST, Math.min(MAX_DIST, this.distance * factor));
+    const nd = Math.max(MIN_DIST, Math.min(this.maxDist, this.distance * factor));
     if (toward) {
       // Keep the point under the cursor roughly fixed while zooming.
       const k = 1 - nd / this.distance;
@@ -141,7 +150,9 @@ export class MapView {
     const geo = c.geo;
     this.renderer = createRenderer(canvas);
     this.scene.background = new Color(SKY);
-    this.scene.fog = new Fog(SKY, 1800, 4200);
+    // Fog far enough out that the whole-map view stays clear on a big map.
+    const extent = Math.max(geo.width, geo.depth);
+    this.scene.fog = new Fog(SKY, Math.max(1800, extent * 1.1), Math.max(4200, extent * 2.6));
     this.scene.add(new HemisphereLight('#e8eef2', '#6a5b3c', 1.15));
     const sun = new DirectionalLight('#fff0d6', 1.6);
     sun.position.set(-400, 700, 300);
@@ -165,7 +176,7 @@ export class MapView {
         const x = ix * GEO_CELL, z = iz * GEO_CELL, h = geo.gridHeight(ix, iz);
         pos.set([x, h, z], i * 3);
         this.vertexY[i] = h;
-        baseColor(geo, x, z, h, col);
+        baseColor(geo, x, z, h, geo.gridRiver(ix, iz), col);
         this.baseColors.set([col.r, col.g, col.b], i * 3);
         let b1 = -1, b2 = -1, d1 = Infinity, d2 = Infinity;
         sp.forEach((p, k) => {
@@ -221,6 +232,13 @@ export class MapView {
     this.refreshOwners();
     this.resize();
     this.cam.set(geo.width / 2, geo.depth / 2, 900);
+    // Compile every shader now (route and ring materials included), so nothing compiles mid-game.
+    this.routeGroup.add(this.routeNow, this.routeLater, this.routeEnd);
+    this.townRing.visible = true;
+    this.cam.update(0);
+    this.renderer.compile(this.scene, this.cam.camera);
+    this.townRing.visible = false;
+    this.routeGroup.visible = false;
   }
 
   /** Every road in one mesh. */
@@ -239,7 +257,7 @@ export class MapView {
       const x = rng.range(0, geo.width), z = rng.range(0, geo.depth);
       const h = geo.height(x, z);
       if (h < MAP_WATER + 0.6 || h > 24 || geo.desert(x, z) > 0.25) continue;
-      const river = geo.riverDistance(x, z).d;
+      const river = geo.riverNear(x, z);
       // Groves along rivers and on the hills, scattered thin elsewhere.
       const p = river < 40 ? 0.55 : h > 5 ? 0.4 : 0.06;
       if (rng.next() > p) continue;
@@ -270,37 +288,74 @@ export class MapView {
     this.refreshOwners();
   }
 
-  /** Re-tint territory and flags after towns change hands (plain number loop: 60k+ vertices). */
+  /** Per settlement: its land cells (sum of positions, count), fixed since nearest-town cells never change. */
+  private landSum: { x: Float64Array; z: Float64Array; n: Float64Array } | null = null;
+  /** Owner (faction index) per settlement as last coloured, and the view it was coloured for. */
+  private colouredWho: Int32Array | null = null;
+  private colouredPolitical = false;
+
+  /**
+   * Re-tint territory and flags after towns change hands. Only the vertices next to towns that changed
+   * owner are recoloured, and only that slice of the colour buffer is uploaded; nothing happens at all
+   * when no town changed (it is called after every battle). Toggling the realms view recolours all.
+   */
   refreshOwners() {
     // Normal view: a light wash near each town. Political view: solid colour over all the land.
     const pol = this.political;
-    const strength = pol ? 0.62 : 0.24, reach = pol ? 1e9 : 260, full = pol ? 1e9 : 200;
     const owners = this.c.state.owners;
-    // Owner colour and identity per settlement index, resolved once.
     const n = this.settlementIds.length;
-    const rgb = new Float32Array(n * 3), who = new Int32Array(n).fill(-1);
     const factionIds = Object.keys(this.c.data.factions);
+    const who = new Int32Array(n);
+    this.settlementIds.forEach((id, k) => (who[k] = factionIds.indexOf(owners[id])));
+    const prev = this.colouredWho;
+    const full = !prev || pol !== this.colouredPolitical;
+    let changed: Uint8Array | null = null;
+    if (!full) {
+      changed = new Uint8Array(n);
+      let any = false;
+      for (let k = 0; k < n; k++) if (who[k] !== prev[k]) (changed[k] = 1), (any = true);
+      if (!any) return;
+    }
+    this.colouredWho = who;
+    this.colouredPolitical = pol;
+    this.recolour(who, changed);
+  }
+
+  private recolour(who: Int32Array, changed: Uint8Array | null) {
+    const pol = this.political;
+    const owners = this.c.state.owners;
+    const n = this.settlementIds.length;
+    const strength = pol ? 0.62 : 0.24, reach = pol ? 1e9 : 260, full = pol ? 1e9 : 200;
+    // Owner colour per settlement index, resolved once; flags of changed towns.
+    const rgb = new Float32Array(n * 3);
     const grey = new Color('#999999');
     this.settlementIds.forEach((id, k) => {
-      const f = factionIds.indexOf(owners[id]);
-      who[k] = f;
-      const col = f >= 0 ? this.armyColors.get(owners[id])! : grey;
+      const col = who[k] >= 0 ? this.armyColors.get(owners[id])! : grey;
       rgb.set([col.r, col.g, col.b], k * 3);
-      this.towns.setFlag(id, col);
+      if (!changed || changed[k]) this.towns.setFlag(id, col);
     });
     const out = this.terrainColors.array as Float32Array, base = this.baseColors;
-    const sx = new Float64Array(n), sz = new Float64Array(n), sc = new Float64Array(n);
     const nx = this.c.geo.nx + 1;
-    for (let i = 0; i < this.nearest.length; i++) {
-      let r = base[i * 3], g = base[i * 3 + 1], b = base[i * 3 + 2];
-      const k1 = this.nearest[i], d = this.nearDist[i], y = this.vertexY[i];
-      // Land a realm can hold: above water, below the high mountains.
-      const land = y > MAP_WATER + 0.2 && y < 30;
-      if (land && who[k1] >= 0) {
-        sx[k1] += (i % nx) * GEO_CELL;
-        sz[k1] += Math.floor(i / nx) * GEO_CELL;
-        sc[k1]++;
+    if (!this.landSum) {
+      // Land a realm can hold (above water, below the high mountains), summed per nearest town once.
+      const ls = (this.landSum = { x: new Float64Array(n), z: new Float64Array(n), n: new Float64Array(n) });
+      for (let i = 0; i < this.nearest.length; i++) {
+        const y = this.vertexY[i];
+        if (y <= MAP_WATER + 0.2 || y >= 30) continue;
+        const k = this.nearest[i];
+        ls.x[k] += (i % nx) * GEO_CELL;
+        ls.z[k] += Math.floor(i / nx) * GEO_CELL;
+        ls.n[k]++;
       }
+    }
+    let lo = Infinity, hi = -1;
+    for (let i = 0; i < this.nearest.length; i++) {
+      const k1 = this.nearest[i];
+      if (changed && !changed[k1] && !changed[this.second[i]]) continue;
+      if (i < lo) lo = i;
+      hi = i;
+      let r = base[i * 3], g = base[i * 3 + 1], b = base[i * 3 + 2];
+      const d = this.nearDist[i], y = this.vertexY[i];
       if (d < reach && who[k1] >= 0) {
         let fade = d < full ? 1 : 1 - (d - full) / 60;
         if (pol) fade *= y < 14 ? 1 : y > 30 ? 0 : 1 - (y - 14) / 16;
@@ -321,16 +376,21 @@ export class MapView {
       out[i * 3 + 1] = g;
       out[i * 3 + 2] = b;
     }
-    this.terrainColors.needsUpdate = true;
+    // Upload only the slice that changed.
+    const attr = this.terrainColors;
+    attr.clearUpdateRanges();
+    if (hi >= lo) attr.addUpdateRange(lo * 3, (hi - lo + 1) * 3);
+    attr.needsUpdate = true;
     // Realm centres from the land around their towns (cells nearest each town, summed per owner).
+    const ls = this.landSum;
     this.realmCentre.clear();
     this.settlementIds.forEach((id, k) => {
-      if (!sc[k]) return;
+      if (!ls.n[k] || who[k] < 0) return;
       const o = owners[id];
       const e = this.realmCentre.get(o) ?? { x: 0, z: 0, cells: 0 };
-      e.x += sx[k];
-      e.z += sz[k];
-      e.cells += sc[k];
+      e.x += ls.x[k];
+      e.z += ls.z[k];
+      e.cells += ls.n[k];
       this.realmCentre.set(o, e);
     });
     for (const e of this.realmCentre.values()) {
@@ -401,23 +461,31 @@ export class MapView {
     return this.tokens.get(id) ?? null;
   }
 
+  /** The selected army's march: three meshes and materials made once, only their geometry changes. */
+  private readonly routeNow = new Mesh(new BufferGeometry(), new MeshBasicMaterial({ color: '#f2c96b' }));
+  private readonly routeLater = new Mesh(new BufferGeometry(), new MeshBasicMaterial({ color: '#f6efdc', transparent: true, opacity: 0.55 }));
+  private readonly routeEnd = new Mesh(new TorusGeometry(13, 1.1, 6, 28).rotateX(-Math.PI / 2), new MeshBasicMaterial({ color: '#f2c96b' }));
+
   private updateRoute() {
     const a = this.selected !== null ? this.c.army(this.selected) : undefined;
     const r = a && a.faction === this.c.player ? this.c.routePoints(a) : { points: [], reach: 0 };
-    const key = r.points.map((p) => `${p.x.toFixed(1)},${p.z.toFixed(1)}`).join(';') + `|${r.reach}`;
+    // Rebuild when the route or the reach changes by a visible amount (not every frame of a march).
+    const key = r.points.map((p) => `${Math.round(p.x / 2)},${Math.round(p.z / 2)}`).join(';') + `|${Math.round(r.reach / 2)}`;
     if (key === this.routeKey) return;
     this.routeKey = key;
-    for (const m of this.routeGroup.children as Mesh[]) m.geometry.dispose();
-    this.routeGroup.clear();
-    if (r.points.length < 2) return;
+    if (!this.routeGroup.children.length) this.routeGroup.add(this.routeNow, this.routeLater, this.routeEnd);
+    const show = r.points.length >= 2;
+    this.routeGroup.visible = show;
+    if (!show) return;
     const [now, later] = splitAt(r.points, r.reach);
-    if (now.length > 1) this.routeGroup.add(new Mesh(ribbon(this.c.geo, now, 3.2, 0.9), new MeshBasicMaterial({ color: '#f2c96b' })));
-    if (later.length > 1) this.routeGroup.add(new Mesh(ribbon(this.c.geo, later, 2.4, 0.8), new MeshBasicMaterial({ color: '#f6efdc', transparent: true, opacity: 0.55 })));
+    const set = (m: Mesh, pts: XZ[], w: number, lift: number) => {
+      m.geometry.dispose();
+      m.geometry = pts.length > 1 ? ribbon(this.c.geo, pts, w, lift) : new BufferGeometry();
+    };
+    set(this.routeNow, now, 3.2, 0.9);
+    set(this.routeLater, later, 2.4, 0.8);
     const end = r.points[r.points.length - 1];
-    const ring = new Mesh(new TorusGeometry(13, 1.1, 6, 28), new MeshBasicMaterial({ color: '#f2c96b' }));
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(end.x, this.c.geo.height(end.x, end.z) + 1.2, end.z);
-    this.routeGroup.add(ring);
+    this.routeEnd.position.set(end.x, this.c.geo.height(end.x, end.z) + 1.2, end.z);
   }
 
   /** Ground point under a pixel: intersect a level plane, then refine against the heightfield. */
@@ -450,14 +518,14 @@ export class MapView {
   /** Remove tokens of armies that no longer exist and rebuild flags (after loading or a new campaign). */
   reset() {
     this.tokens.clear();
+    this.colouredWho = null;
     this.routeKey = '';
     this.refreshOwners();
   }
 }
 
-function baseColor(geo: MapGeo, x: number, z: number, h: number, c: Color) {
+function baseColor(geo: MapGeo, x: number, z: number, h: number, river: number, c: Color) {
   if (h < MAP_WATER + 0.15) return c.set('#55775f');
-  const river = geo.riverDistance(x, z).d;
   const desert = geo.desert(x, z);
   c.set('#8a9a52');
   if (river < 30) c.lerp(new Color('#6b8a44'), 0.6 * (1 - river / 30));

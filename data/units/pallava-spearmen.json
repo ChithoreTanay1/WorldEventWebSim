@@ -1,0 +1,70 @@
+{
+  "id": "pallava-spearmen",
+  "name": "Pallava Spearmen",
+  "category": "infantry",
+  "figures": 160,
+  "canCapture": true,
+  "captureRate": 2,
+  "hp": 900,
+  "org": 598,
+  "stamina": 1500,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.25,
+    "rally": 0.5,
+    "shatter": -0.25
+  },
+  "walk": 70,
+  "run": 94,
+  "formations": {
+    "column": [
+      34,
+      26
+    ],
+    "line": [
+      60,
+      10
+    ],
+    "ring": [
+      30,
+      30
+    ]
+  },
+  "defaultFormation": "line",
+  "melee": {
+    "attack": 38,
+    "defense": 57,
+    "weapon": {
+      "name": "Spear",
+      "orgRatio": 330,
+      "bimTicks": 4,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher"
+      ]
+    },
+    "chargeBonus": 35,
+    "chargeResistance": 0.5,
+    "runChargeResMod": -1.1,
+    "chargePenetration": 0.5,
+    "flankPenBonus": 0.4,
+    "flankOrgMod": 1.0,
+    "antiCavalry": 0.35
+  },
+  "orgRadius": 90,
+  "orgRadiusBonus": 7,
+  "panicDistance": 40,
+  "visibility": 1,
+  "height": 1.7,
+  "icon": "spear",
+  "note": "Kanchi's trained spearmen: solid and well led, not quick on their feet.",
+  "kingdom": "pallava",
+  "base": "levy-spearmen",
+  "traits": [
+    "+15% melee defence",
+    "+15% organization",
+    "+5% melee attack",
+    "-10% running speed"
+  ]
+}

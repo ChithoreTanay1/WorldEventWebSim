@@ -1,0 +1,91 @@
+{
+  "id": "kosala-forest-archers",
+  "name": "Forest Archers of Kosala",
+  "category": "skirmisher",
+  "figures": 80,
+  "canCapture": false,
+  "captureRate": 0,
+  "hp": 270,
+  "org": 650,
+  "stamina": 2400,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.25,
+    "rally": 0.5,
+    "shatter": -0.3
+  },
+  "walk": 80,
+  "run": 125,
+  "formations": {
+    "loose": [
+      50,
+      14
+    ]
+  },
+  "defaultFormation": "loose",
+  "melee": {
+    "attack": 24,
+    "defense": 14,
+    "weapon": {
+      "name": "Knife",
+      "orgRatio": 290,
+      "bimTicks": 4,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher"
+      ]
+    },
+    "chargeBonus": 0,
+    "chargeResistance": -0.4,
+    "runChargeResMod": 0,
+    "chargePenetration": 0,
+    "flankPenBonus": 0,
+    "flankOrgMod": 1.0
+  },
+  "ranged": {
+    "attack": 14,
+    "weapon": {
+      "name": "Javelins",
+      "orgRatio": 420,
+      "enfilade": true,
+      "effective": 35,
+      "close": 20,
+      "bands": [
+        [
+          0,
+          20,
+          3.0,
+          2.0
+        ],
+        [
+          20,
+          40,
+          2.0,
+          0.4
+        ],
+        [
+          40,
+          55,
+          0.4,
+          -0.5
+        ]
+      ]
+    },
+    "ammo": 40
+  },
+  "orgRadius": 100,
+  "orgRadiusBonus": 4,
+  "panicDistance": 35,
+  "visibility": 0.42,
+  "height": 1.7,
+  "icon": "javelin",
+  "note": "Hunters from the forests of Mahakantara: very hard to spot, sharp shots, few in number.",
+  "kingdom": "kosala",
+  "base": "skirmishers",
+  "traits": [
+    "+30% concealment",
+    "+15% missile damage",
+    "-10% men (HP)"
+  ]
+}

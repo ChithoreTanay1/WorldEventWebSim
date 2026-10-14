@@ -90,3 +90,60 @@ Frame budget used: about **6–7 ms of 16.6 ms**. All targets are met: 60 FPS, u
   - single flat-shaded terrain mesh
 - **Not added: FXAA.** Edges are slightly jaggier without MSAA. FXAA would cost a full-screen pass (~1 ms here); add it only if the look matters more than the headroom.
 - **Bundle:** Three.js is imported by name and tree-shaken by Vite; the bundle is ~200 KB gzipped, mostly Three.js.
+
+---
+
+# Second pass: the expanded campaign (20 realms, South India, money, sieges)
+
+Same machine, production build, 1920×1080 at 150%, same method. New scenes:
+- the Tab realms view
+- 4 full campaign turns: AI planning for 19 realms, marching, off-screen battles, the end of turn, saving
+
+Full turns are driven from inside the page, so the measuring harness doesn't steal main-thread time from the game.
+
+## Baseline (before this pass)
+
+| Scene | FPS | Long frames | CPU ms avg / worst | GPU ms | Draw calls |
+|---|---|---|---|---|---|
+| Battles (all scenes) | 60.0 | 0 | 1.6–2.6 | 5.0–6.1 | 44–47 |
+| Campaign idle / zoomed out / realms view | 58.7–60.0 | 0–1 | 1.0–1.3 | 5.3–7.3 | 16 |
+| Campaign marching | 51.4 | 10 | 2.6 / 70 (march) | 6.4 | 16 |
+| 4 full turns | 46–50 | 6–10 | 3.4 / 176–228 | 5.5 | 16 |
+
+Map start-up also took about 2.2 s of JavaScript.
+
+What the profiler and Chrome trace showed:
+1. **Territory recolour.** It ran after every off-screen battle, recolouring all 176k terrain vertices and re-uploading 2 MB of colours each time. That caused the 70 ms march frames and 100–160 ms GPU-process stalls.
+2. **First-use shader compile** of the march-route materials: a ~200 ms freeze on the first End Turn.
+3. **HUD rebuild at turn end.** The realms legend (20 rows), the whole chronicle and the army card were rebuilt together, about 450 of the page's ~500 elements. That cost an 82 ms layout and up to 228 ms in one frame. The army card was also rebuilt 10 times a second while armies marched.
+4. **Backdrop blur** on the top bar, re-composited over the moving 3D canvas every frame.
+5. **Start-up.** River distance was computed twice for every map vertex, with every river checked.
+
+## Changes
+
+| # | Change | Effect |
+|---|---|---|
+| 1 | Recolour only the vertices next to towns that changed hands, upload only that slice, and return at once when nothing changed. Per-town land sums are cached. | March worst frame 70 → 14 ms |
+| 2 | Route ribbons use persistent meshes and materials; `renderer.compile` at map and battlefield load. | No shader-compile freezes mid-game |
+| 3 | The legend updates its rows in place, the chronicle appends only new entries, and the army card isn't rebuilt for the moving march figure. | HUD worst 228 → 6 ms; turn-end worst frame 228 → 10 ms |
+| 4 | Removed the top bar's backdrop blur. | Less compositing every frame on integrated GPUs |
+| 5 | River distance is baked once into a grid with bounding-box early-outs, and colouring and trees read the grid. | Map start-up about 0.9 s faster |
+
+## After this pass
+
+| Scene | FPS | Long frames | CPU ms avg / worst | GPU ms | Draw calls |
+|---|---|---|---|---|---|
+| Battle planning / with 11 paths | 60.0 | 0 | 1.0 / 1.3 | 4.7 / 5.0 | 44 / 46 |
+| Battle resolving 4× / zoomed out | 60.0 | 0 | 1.2–1.7 | 4.6–4.7 | 46–47 |
+| Campaign idle / zoomed out | 60.0 | 0 | 0.8 | 4.7 / 5.6 | 16 |
+| Campaign realms view (Tab) | 60.0 | 0 | 1.0 | 6.0 | 16 |
+| Campaign marching | 59.4 | 1 | 1.4 | 5.9 | 16 |
+| 4 full turns (3 runs) | 60.0 | 0 | 1.4–1.6 / 8–11 | 4.8–4.9 | 16 |
+
+The gameplay changes in this round are deliberate rules changes: stronger flanking, sieges, money, and AI realms at war. For flanking, the determinism fingerprints were re-recorded in the same change; 91 tests pass.
+
+## Still to watch
+
+- **Garbage during campaign turns** is 11–15 MB/s: AI route searches, army positions, and contact checks for ~25 armies. It causes only small young-generation collections; no long frames were seen. Pool these if the number of armies grows a lot.
+- **Map start-up** still spends about 0.5 s building the 176k-vertex heightfield on first load. This happens once, behind the briefing screen.
+- **Machine load.** The first pass's note still applies: heavy background load on the same laptop slows the game's own work several times over.

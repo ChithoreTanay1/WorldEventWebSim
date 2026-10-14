@@ -46,6 +46,8 @@ export class View {
     this.markings = new Markings(battle);
     this.scene.add(this.markings.root);
     this.resize();
+    // Compile every shader up front (markers, overlays, effects included), so none compiles mid-battle.
+    this.renderer.compile(this.scene, this.rig.camera);
   }
 
   /** Swap in a fresh battle (restart). Terrain is rebuilt only if the scenario differs. */

@@ -1,0 +1,92 @@
+{
+  "id": "kalabhra-raiders",
+  "name": "Kalabhra Raiders",
+  "category": "skirmisher",
+  "figures": 80,
+  "canCapture": false,
+  "captureRate": 0,
+  "hp": 300,
+  "org": 552,
+  "stamina": 2400,
+  "orgMarks": {
+    "route": 0,
+    "recover": 0.25,
+    "rally": 0.5,
+    "shatter": -0.3
+  },
+  "walk": 92,
+  "run": 144,
+  "formations": {
+    "loose": [
+      50,
+      14
+    ]
+  },
+  "defaultFormation": "loose",
+  "melee": {
+    "attack": 26,
+    "defense": 14,
+    "weapon": {
+      "name": "Knife",
+      "orgRatio": 290,
+      "bimTicks": 4,
+      "canCharge": [
+        "infantry",
+        "missile",
+        "skirmisher"
+      ]
+    },
+    "chargeBonus": 0,
+    "chargeResistance": -0.4,
+    "runChargeResMod": 0,
+    "chargePenetration": 0,
+    "flankPenBonus": 0,
+    "flankOrgMod": 1.0
+  },
+  "ranged": {
+    "attack": 12,
+    "weapon": {
+      "name": "Javelins",
+      "orgRatio": 420,
+      "enfilade": true,
+      "effective": 35,
+      "close": 20,
+      "bands": [
+        [
+          0,
+          20,
+          3.0,
+          2.0
+        ],
+        [
+          20,
+          40,
+          2.0,
+          0.4
+        ],
+        [
+          40,
+          55,
+          0.4,
+          -0.5
+        ]
+      ]
+    },
+    "ammo": 40
+  },
+  "orgRadius": 100,
+  "orgRadiusBonus": 4,
+  "panicDistance": 35,
+  "visibility": 0.6,
+  "height": 1.7,
+  "icon": "javelin",
+  "note": "Hill raiders who overran the Tamil kingdoms: fast and bold, quick to scatter.",
+  "kingdom": "kalabhra",
+  "base": "skirmishers",
+  "traits": [
+    "+15% walking speed",
+    "+15% running speed",
+    "+10% melee attack",
+    "-15% organization"
+  ]
+}

@@ -87,6 +87,8 @@ export interface CampaignData {
   reinforcements: Reinforcement[];
   /** Pairs of factions at peace: they never fight or take each other's towns. All others are at war. */
   alliances?: [string, string][];
+  /** Money: realms tax their towns and pay to raise and keep troops (absent = no money at all). */
+  economy?: Economy;
   /** End-screen lines. */
   victory?: string;
   defeat?: string;
@@ -118,6 +120,18 @@ export interface Army {
   moveLeft: number;
 }
 
+export interface Economy {
+  /** Realms that raise troops for free (no treasury). */
+  exempt: string[];
+  /** Gold per turn from each town held, and from a capital held by its own realm. */
+  income: { town: number; capital: number };
+  startGold: number;
+  /** Fraction of a unit's price paid every turn to keep it. */
+  upkeep: number;
+  /** Price to raise one unit, by unit type. */
+  costs: Record<string, number>;
+}
+
 export interface CampaignLogEntry {
   turn: number;
   text: string;
@@ -138,6 +152,12 @@ export interface CampaignState {
   recruits: Recruit[];
   /** Factions with no towns and no armies left (announced once). */
   fallen?: string[];
+  /** Treasury of each realm that pays for its troops. */
+  gold?: Record<string, number>;
+  /** Towns under siege: the besieging army and the turn the siege began. */
+  sieges?: Record<string, { army: number; since: number }>;
+  /** Each AI realm's current war focus and the turn it will reconsider. */
+  wars?: Record<string, { target: string; until: number }>;
 }
 
 export interface Recruit {
