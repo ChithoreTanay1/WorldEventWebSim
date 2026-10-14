@@ -40,6 +40,9 @@ export class CampaignHud {
   /** Realm names drawn over their land in the political view, at the centre of their towns. */
   private readonly realmLabels = new Map<string, HTMLDivElement>();
   private readonly realmAt = new Map<string, { x: number; y: number; z: number; size: number }>();
+  /** Label sizes (measured at the HUD rate, political view only) and this frame's occupied boxes. */
+  private readonly sizes = new Map<HTMLElement, { w: number; h: number }>();
+  private boxes = new Float32Array(512);
   private readonly armyLabels = new Map<number, HTMLDivElement>();
   readonly tooltip = h('div', 'tooltip');
   private readonly overlay = h('div', 'overlay');
@@ -126,10 +129,21 @@ export class CampaignHud {
   updateLabels() {
     const c = this.c;
     const pt = this.pt;
+    const political = this.view.political && this.view.cam.zoomDistance >= 900;
+    let nb = 0;
     for (const [id, el] of this.townLabels) {
       const p = c.pos[id];
       this.view.project(p.x, this.townY.get(id)!, p.z + 14, pt);
       place(el, pt.visible, pt.x, pt.y, 0);
+      // Town label boxes, for keeping realm names clear of them.
+      const size = this.sizes.get(el);
+      if (political && pt.visible && size) {
+        const b = this.boxes;
+        b[nb++] = pt.x - size.w / 2;
+        b[nb++] = pt.y;
+        b[nb++] = pt.x + size.w / 2;
+        b[nb++] = pt.y + size.h;
+      }
     }
     const scale = this.view.markerScale;
     for (const a of c.armies) {
@@ -142,12 +156,35 @@ export class CampaignHud {
     for (const [id, el] of this.realmLabels) {
       const r = this.realmAt.get(id);
       // Realm names only when the whole map is in view; zoomed in, town labels say enough.
-      if (!r || !this.view.political || this.view.cam.zoomDistance < 900) {
+      if (!r || !political) {
         place(el, false, 0, 0, -50);
         continue;
       }
       this.view.project(r.x, r.y, r.z, pt);
-      place(el, pt.visible, pt.x, pt.y, -50);
+      const size = this.sizes.get(el);
+      if (!pt.visible || !size) {
+        place(el, pt.visible, pt.x, pt.y, -50);
+        continue;
+      }
+      // Keep the name inside the window, then nudge it up or down to the nearest spot clear of town
+      // labels and the realm names already placed.
+      const hw = size.w / 2, hh = size.h / 2;
+      const x = Math.max(hw + 8, Math.min(window.innerWidth - hw - 8, pt.x));
+      const top = 60 + hh, bottom = window.innerHeight - hh - 8;
+      let y = Math.max(top, Math.min(bottom, pt.y));
+      for (const k of NUDGE) {
+        const cy = Math.max(top, Math.min(bottom, pt.y + k * size.h));
+        if (!overlaps(this.boxes, nb, x - hw, cy - hh, x + hw, cy + hh)) {
+          y = cy;
+          break;
+        }
+      }
+      place(el, true, x, y, -50);
+      const b = this.boxes;
+      b[nb++] = x - hw;
+      b[nb++] = y - hh;
+      b[nb++] = x + hw;
+      b[nb++] = y + hh;
     }
   }
 
@@ -197,10 +234,21 @@ export class CampaignHud {
       const n = towns.get(id) ?? 0;
       this.realmAt.set(id, { x: e.x, y: c.geo.height(e.x, e.z) + 30, z: e.z, size: n });
       const el = this.realmLabels.get(id);
-      if (el) setStyle(el, 'fontSize', `${Math.min(26, 13 + n * 2)}px`);
+      // Size by how much the realm holds, scaled to the window so names fit their land at any zoom level.
+      const fit = Math.max(0.55, Math.min(1, window.innerWidth / 1600));
+      if (el) setStyle(el, 'fontSize', `${Math.round(Math.min(24, 12 + n * 2) * fit)}px`);
     }
     // The political view is for the whole map: the army card steps aside.
     this.root.classList.toggle('political', this.view.political);
+    if (this.view.political) {
+      // One layout read per HUD tick, not per frame.
+      for (const el of [...this.townLabels.values(), ...this.realmLabels.values()]) {
+        if (el.style.display === 'none') continue;
+        this.sizes.set(el, { w: el.offsetWidth, h: el.offsetHeight });
+      }
+      const need = (this.townLabels.size + this.realmLabels.size) * 4;
+      if (this.boxes.length < need) this.boxes = new Float32Array(need * 2);
+    }
   }
 
   showTooltip(text: string | null, x: number, y: number) {
@@ -235,7 +283,8 @@ export class CampaignHud {
       fill.style.background = r.f.color;
       const sw = h('span', 'camp-swatch');
       sw.style.background = r.f.color;
-      const name = h('span', 'camp-realm-name', sw, r.f.name, r.role ? h('span', `camp-role role-${r.role.toLowerCase()}`, r.role) : '');
+      const name = h('span', 'camp-realm-name', sw, h('span', '', r.f.name), r.role ? h('span', `camp-role role-${r.role.toLowerCase()}`, r.role) : '');
+      name.title = r.f.name;
       return h('div', `army camp-legend${r.rank === 0 ? ' mine' : ''}${r.rank === 3 ? ' fallen' : ''}`,
         h('div', 'army-row', name, h('span', 'army-num', `${r.towns} towns · ${r.armies} armies`)),
         h('div', 'bar', fill));
@@ -578,4 +627,12 @@ function setStyle(el: HTMLElement, prop: 'background' | 'borderColor' | 'fontSiz
   if (el.dataset[k] === value) return;
   el.dataset[k] = value;
   el.style[prop] = value;
+}
+
+/** Vertical nudges tried for a realm name, in multiples of its height. */
+const NUDGE = [0, -1.1, 1.1, -2.2, 2.2, -3.3, 3.3];
+
+function overlaps(b: Float32Array, n: number, x0: number, y0: number, x1: number, y1: number): boolean {
+  for (let i = 0; i < n; i += 4) if (x0 < b[i + 2] && x1 > b[i] && y0 < b[i + 3] && y1 > b[i + 1]) return true;
+  return false;
 }

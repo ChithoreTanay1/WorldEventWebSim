@@ -218,7 +218,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .campaign-root { pointer-events: none; }
 .campaign-root > * { pointer-events: auto; }
 .campaign-root > .camp-labels, .campaign-root > .tooltip, .campaign-root > .camp-fade, .campaign-root > .camp-hint { pointer-events: none; }
-.camp-labels { position: absolute; inset: 0; overflow: hidden; }
+.camp-labels { position: absolute; inset: 0; overflow: hidden; z-index: 0; isolation: isolate; }
 .camp-town {
   position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 5px; padding: 1px 7px 1px 5px; white-space: nowrap;
   font-family: var(--serif); font-size: 12px; color: #f6efdc; background: rgba(28, 24, 18, 0.72); border-radius: 3px;
@@ -291,4 +291,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .campaign-root.political > .camp-card { display: none !important; }
 .campaign-root.political .camp-town { opacity: 0.85; font-size: 11px; }
 .campaign-root.political .camp-town.mine { opacity: 1; }
-.camp-realm { z-index: 1; }
+.campaign-root > .topbar, .campaign-root > .side-panel, .campaign-root > .camp-card { z-index: 2; }
+/* Legend rows never overflow the panel: long names shorten with an ellipsis, counts stay on one line. */
+.camp-legend .army-row { gap: 6px; }
+.camp-legend .camp-realm-name { flex: 1 1 auto; overflow: hidden; white-space: nowrap; }
+.camp-legend .camp-realm-name > :not(.camp-swatch):not(.camp-role) { overflow: hidden; text-overflow: ellipsis; }
+.camp-legend .army-num { flex: none; white-space: nowrap; font-size: 11px; }
+.camp-role { flex: none; }
+.camp-realm { max-width: 40vw; overflow: hidden; text-overflow: ellipsis; }
