@@ -5,7 +5,26 @@ import {
   ATTACKS_PER_TURN, LOW_ORG_FULL, LOW_ORG_START, ORG_FIELD_CLAMP, OVERLAP_FULL, OVERLAP_START,
   STAMINA_FULL, STAMINA_START, CHARGE_STAMINA,
 } from './constants';
-import { bearingFrom, flankPercent } from './geometry';
+import { bearingFrom, toLocal } from './geometry';
+
+/**
+ * Flanking. A hit's flank share runs from 0 on the front edge to 1 on the rear edge (0.5 square on a
+ * side). Flank hits do more than the wiki's org bonus: extra casualties, a weaker reply from the unit
+ * being flanked, and charges into a flank or rear add a shock to organization scaled by the charger's
+ * weight, so heavy horse and elephants can break a unit outright.
+ */
+export const FLANK = {
+  /** Melee casualties: x(1 + hp * flank). */
+  hp: 1.0,
+  /** Org damage: the unit's flankOrgMod is multiplied by this. */
+  org: 2.0,
+  /** A unit fighting an enemy on its flank strikes back at x(1 - reply * flank). */
+  reply: 0.5,
+  /** Charge damage into a flank or rear: x(1 + charge * flank). */
+  charge: 1.5,
+  /** Charge shock: up to this share of the defender's max org, at full flank and weight 1. */
+  shock: 0.35,
+};
 import type { Terrain } from './terrain';
 import type { Category, FormationDef, RangedWeapon } from './types';
 import type { Unit } from './unit';
@@ -72,9 +91,24 @@ export function terrainMods(ctx: CombatCtx, u: Unit): { atk: number; def: number
   return { atk: atk * w, def: def * w, chargeRes: chargeRes * w, chargeBonus: chargeBonus * w };
 }
 
-/** Flank % of an attack on `d` coming from `a`'s position; 0 for flank-immune formations (wiki). */
+/**
+ * Flank share of an attack on `d` from `a`: where the attacker meets the block, measured in the block's
+ * own proportions (corners at 45 and 135 degrees), so the end of a wide line counts as its flank, not
+ * as part of a front arc that reaches nearly to its sides. 0 for formations that can't be flanked.
+ */
 export function flankOf(ctx: CombatCtx, d: Unit, a: Unit): number {
-  return flankPercent(shapeForm(ctx, d).flank, bearingFrom(d, a.x, a.z));
+  if (!shapeForm(ctx, d).flank) return 0;
+  const { f, l } = toLocal(d, a.x, a.z);
+  const nf = f / Math.max(1, d.depth / 2), nl = Math.abs(l) / Math.max(1, d.frontage / 2);
+  const angle = (Math.atan2(nl, nf) * 180) / Math.PI;
+  return clamp((angle - 45) / 90, 0, 1);
+}
+
+/** Charge weight: how much a charger's mass adds to the shock of a flank or rear charge. */
+function chargeWeight(a: Unit): number {
+  const cat = a.type.category;
+  const base = cat === 'elephant' ? 1.3 : cat === 'cavalry' ? 1 : 0.5;
+  return base * clamp(a.type.melee.chargeBonus / 100, 0.5, 1.5);
 }
 
 /**
@@ -120,10 +154,12 @@ export function meleeSwing(ctx: CombatCtx, a: Unit, d: Unit): Hit {
   factor *= Math.max(0, 1 - ta.def);
   factor *= 1 - 0.5 * overlapScale(a);
   if (a.type.category === 'cavalry' && d.type.category === 'elephant') factor *= 0.6; // estimate: horses shy from elephants
+  // Fighting an enemy that is on your own flank or rear: a weaker reply.
+  factor *= 1 - FLANK.reply * flankOf(ctx, a, d);
   if (ta.def >= 1) factor = 0;
-  const hp = swing * Math.max(0.2, factor);
   const flank = flankOf(ctx, d, a);
-  const org = orgLoss(ctx, d, hp, a.type.melee.weapon.orgRatio, 10, a.type.melee.flankOrgMod * flank);
+  const hp = swing * Math.max(0.2, factor) * (1 + FLANK.hp * flank);
+  const org = orgLoss(ctx, d, hp, a.type.melee.weapon.orgRatio, 10, a.type.melee.flankOrgMod * FLANK.org * flank);
   // Casualties: the wiki's HP damage is mostly a vehicle for organization loss, so men barely fall.
   // We keep org exactly as the wiki computes it and scale the men killed. Fleeing men die in droves.
   return { hp: hp * CASUALTIES.melee * (d.routing ? CASUALTIES.pursuit : 1), org };
@@ -189,8 +225,10 @@ export function chargeImpact(ctx: CombatCtx, a: Unit, d: Unit): ChargeResult {
   const pen = (a.type.melee.chargePenetration + flank * a.type.melee.flankPenBonus) * eff;
   const res = chargeResistance(ctx, d, a);
   const flankRes = shapeForm(ctx, d).flank ? statForm(ctx, d).flankChargeRes * flank : 0;
-  const dmg = base * clamp(1 - res - flankRes + pen, 0, 1);
-  const dOrg = orgLoss(ctx, d, dmg, a.type.melee.weapon.orgRatio, 10, a.type.melee.flankOrgMod * flank);
+  const dmg = base * clamp(1 - res - flankRes + pen, 0, 1) * (1 + FLANK.charge * flank);
+  // Shock: a charge into a flank or rear tears at cohesion, more so the heavier the charger.
+  const shock = flank * FLANK.shock * chargeWeight(a) * d.maxOrg * eff;
+  const dOrg = orgLoss(ctx, d, dmg, a.type.melee.weapon.orgRatio, 10, a.type.melee.flankOrgMod * FLANK.org * flank) + shock;
 
   // Backlash: the charger takes damage from a well-set defender.
   const td = d.type.melee;

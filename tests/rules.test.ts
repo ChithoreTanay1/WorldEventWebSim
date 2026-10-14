@@ -98,13 +98,14 @@ describe('melee and charges (wiki formulas)', () => {
     expect(h.org).toBeCloseTo((swing / d.maxHp) * 10 * a.type.melee.weapon.orgRatio, 1);
   });
 
-  it('a flank attack on a line costs more organization, not more HP', () => {
+  it('a flank attack on a line costs more men and much more organization', () => {
     const front = duel('heavy-infantry', 'heavy-infantry', [280, 200], 0, 180);
     const flank = duel('heavy-infantry', 'heavy-infantry', [315, 172], 90, 180);
     const hf = meleeSwing(front, front.units[0], front.units[1]);
     const hs = meleeSwing(flank, flank.units[0], flank.units[1]);
-    expect(flankOf(flank, flank.units[1], flank.units[0])).toBeGreaterThan(0.9);
-    expect(hs.hp).toBeCloseTo(hf.hp, 5);
+    const share = flankOf(flank, flank.units[1], flank.units[0]);
+    expect(share).toBeGreaterThan(0.3);
+    expect(hs.hp).toBeGreaterThan(hf.hp * 1.2);
     expect(hs.org).toBeGreaterThan(hf.org * 1.8);
   });
 
