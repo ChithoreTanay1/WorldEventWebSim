@@ -31,6 +31,8 @@ export class Unit implements Frame {
   bim = 0; // Has Been In Melee
   takenFire = 0; // Has Taken Fire
   takenFireStrength = 0;
+  /** Missile volleys landing on this unit lately (one per shooting unit per attack, fading each tick). */
+  volleys = 0;
   hasRan = 0;
   startedRouting = 0;
   rotated180 = 0;

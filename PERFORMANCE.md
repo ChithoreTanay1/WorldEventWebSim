@@ -147,3 +147,25 @@ The gameplay changes in this round are deliberate rules changes: stronger flanki
 - **Garbage during campaign turns** is 11–15 MB/s: AI route searches, army positions, and contact checks for ~25 armies. It causes only small young-generation collections; no long frames were seen. Pool these if the number of armies grows a lot.
 - **Map start-up** still spends about 0.5 s building the 176k-vertex heightfield on first load. This happens once, behind the briefing screen.
 - **Machine load.** The first pass's note still applies: heavy background load on the same laptop slows the game's own work several times over.
+
+---
+
+# Third pass: saves, the battle roster, dashes and quirks
+
+Same machine and method (production build, 1920×1080 at 150%, Intel Iris Xe).
+
+| Scene | FPS | Long frames | CPU ms avg / p95 | GPU ms | Draw calls |
+|---|---|---|---|---|---|
+| Battle planning / with 11 paths | 60.0 | 0 | 0.8 / 1.1 | 4.6 / 4.9 | 44 / 46 |
+| Battle resolving 4× / zoomed out | 60.0 | 0 | 1.2–1.9 | 4.6 | 46–47 |
+| Campaign idle / realms view / zoomed out | 60.0 | 0 | 0.7–0.9 | 4.6–5.9 | 16 |
+| Campaign marching | 60.0 | 0 | 1.0 | 5.5 | 16 |
+| 4 full campaign turns | 60.0 | 0 | 1.4 (worst 8.4) | 4.8 | 16 |
+
+What this round added, and how it stays cheap:
+- **The army roster** is built once per battle and updated in place at the HUD rate (8 a second), touching only the values that changed.
+- **Saves** run only between turns, outside the frame. A save is one `JSON.stringify` of the campaign state (well under 1 ms).
+- **Volley tracking, dashes and quirks** add a few multiplications per charge or volley. The sim cost is unchanged within noise.
+- **Allocation fix:** the soldier renderer's hottest loop called helpers with decimal numbers they couldn't inline, which boxed every number. Inlining the matrix write and the ground-height lookup cut its garbage by 79% (from about 2.96 MB to 0.62 MB per 2.5 s of battle).
+
+Still allocating, without causing long frames: the simulation's vision and line-of-sight checks, per-unit object returns (`speeds()`), and the remaining per-unit block updates. Each is a few hundred KB per 2.5 s and well within the young-generation collector's budget. They are the next candidates if battles grow much larger.

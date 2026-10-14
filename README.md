@@ -33,6 +33,21 @@ How the campaign plays:
 - **Battles:** when armies meet, *Take command* dives the camera into a generated battlefield, and casualties carry back to the map.
 - **Standalone battle:** `?mode=battle` opens the standalone battle.
 
+**Saves:** the campaign autosaves at the start and at the end of every turn. **Saves** in the top bar opens the save screen: up to 12 named saves, each with Load, Overwrite and Delete; **Ctrl+S** quick-saves.
+
+**In battle:**
+- **Army roster** (top left): your units grouped by type with their symbol and count ("2 × Archers"). Click a group to select it, Shift+click adds, double-click looks at it, and ▸ lists the units with their men and morale bars.
+- **Formation lines:** right-drag with several units selected lays them along the line exactly as you drew it, one row from end to end.
+- **Dashes:** running into the enemy without a full charge still lands a blow, by weight. Heavier units hit harder, and a unit low on morale suffers more. A lighter unit crashing into a heavier one takes the damage itself.
+- **Quirks:**
+  - massed archers blunt and madden an elephant charge
+  - braced spears punish horse charging their front
+  - horses fear elephants
+  - skirmishers scatter before a charge
+  - armour turns arrows
+
+  Every unit card lists its quirks.
+
 **Flanking:** charges and melee into a flank or rear cause far more casualties and organisation loss than frontal ones, and the flanked unit fights back weaker. Heavy horse and elephants charging a rear can break a unit outright. Flank and rear are judged by which edge of the block the attacker hits.
 
 **Performance:** add `?perf` to the URL (or press F3) for an FPS / frame-time / draw-call overlay; `window.__perf.report()` gives CPU time per section, GPU time, draw calls and allocation rate. See [PERFORMANCE.md](PERFORMANCE.md) for the 60 FPS work and its numbers.

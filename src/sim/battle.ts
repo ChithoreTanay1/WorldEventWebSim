@@ -2,7 +2,7 @@
 // turn of 16 ticks is simulated. Orders last one turn. Deterministic: seeded RNG, fixed steps, no DOM.
 import { ArmyAI } from './ai';
 import {
-  canCharge, chargeImpact, lowOrgScale, maxRange, meleeSwing, overlapScale, rangedShot, shapeForm,
+  IMPACT, canCharge, chargeImpact, lowOrgScale, maxRange, meleeSwing, overlapScale, rangedShot, shapeForm,
   staminaScale, statForm, type CombatCtx, type Hit,
 } from './combat';
 import {
@@ -689,6 +689,18 @@ export class Battle implements CombatCtx {
           meleeHit.add(a.id).add(d.id);
           a.bim = Math.max(a.bim, d.type.melee.weapon.bimTicks);
           d.bim = Math.max(d.bim, a.type.melee.weapon.bimTicks);
+        } else if (this.canDash(a, d)) {
+          // A dash: running into the enemy without a proper charge still lands a (smaller) blow, by weight.
+          const r = chargeImpact(this, a, d, IMPACT.dashBase + IMPACT.dashRamp * a.runRamp);
+          add(d.id, r.defender);
+          add(a.id, r.attacker);
+          a.stamina = Math.max(0, a.stamina - r.staminaA * 0.5);
+          meleeHit.add(a.id).add(d.id);
+          a.bim = Math.max(a.bim, d.type.melee.weapon.bimTicks);
+          d.bim = Math.max(d.bim, a.type.melee.weapon.bimTicks);
+          if (r.defender.org > r.attacker.org * 2) this.say(a.side, `${a.name} crash into ${d.name}!`, a.side === this.player ? 'good' : 'warn');
+          else if (r.attacker.org > r.defender.org) this.say(a.side, `${a.name} run onto ${d.name} and recoil.`, a.side === this.player ? 'warn' : 'good');
+          a.runRamp = 0;
         } else if (!d.routing && this.enemyLevel(d) >= 1) {
           a.runRamp = 0; // hitting a solid enemy resets the run-up
         }
@@ -795,6 +807,11 @@ export class Battle implements CombatCtx {
   }
 
   /** Ranged attacks (every 2 ticks). Autofire range setting, panic fire, blocking and arcs per the wiki. */
+  /** Running into an enemy (Run order, moving at speed) that isn't a qualifying charge: a dash. */
+  private canDash(a: Unit, d: Unit): boolean {
+    return a.standing && !d.routing && a.order?.type === 'run' && a.running && a.runRamp >= 0.25 && a.bim === 0 && a.staminaFrac > 0.15;
+  }
+
   private missiles(add: (id: number, h: Hit) => void) {
     for (const s of this.units) {
       const r = s.type.ranged;
@@ -856,6 +873,7 @@ export class Battle implements CombatCtx {
       this.firedThisTick.add(s.id);
       target.takenFire = 3;
       target.takenFireStrength = Math.min(1, 0.4 + fired);
+      target.volleys += fired;
       const v = { side: s.side, fromX: s.x, fromZ: s.z, toX: target.x, toZ: target.z, count: Math.max(3, Math.round((s.type.figures * s.hpFrac * fired) / 6)) };
       this.frameVolleys.push(v);
     }
@@ -947,6 +965,7 @@ export class Battle implements CombatCtx {
     if (u.rotated180 > 0 && --u.rotated180 === 0) u.facing = wrapAngle(u.facing + Math.PI);
     if (u.bim > 0) u.bim--;
     if (u.takenFire > 0) u.takenFire--;
+    u.volleys *= 0.7; // recent volleys fade over a few ticks
     if (u.hasRan > 0 && !u.running) u.hasRan--;
     if (u.startedRouting > 0) u.startedRouting--;
     if (u.runResetBlock > 0) u.runResetBlock--;

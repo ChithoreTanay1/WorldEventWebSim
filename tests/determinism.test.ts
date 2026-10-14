@@ -1,6 +1,6 @@
 // Performance work must not change gameplay: full battles from fixed seeds and scripted orders must
 // end in exactly the same state, bit for bit. The expected fingerprints were recorded before the
-// 60 FPS refactor and re-recorded for the flanking rules change; if a deliberate rules change
+// 60 FPS refactor and re-recorded for the flanking, then the weight/dash/quirk rules changes; if a deliberate rules change
 // moves them, re-record them in the same commit (RECORD=1 npx vitest run tests/determinism.test.ts).
 import { describe, expect, it } from 'vitest';
 import type { Battle } from '../src/sim/battle';
@@ -20,9 +20,9 @@ function fingerprint(b: Battle): string {
 }
 
 const EXPECTED: Record<number, string> = {
-  1337: '3bdf8b2e|gupta|92',
-  7: '23838d3c|gupta|86',
-  42: 'd7007851|gupta|64',
+  1337: '6bfc55c7|gupta|88',
+  7: '36a844ee|gupta|91',
+  42: 'fce9ea02|gupta|94',
 };
 
 describe('determinism', () => {

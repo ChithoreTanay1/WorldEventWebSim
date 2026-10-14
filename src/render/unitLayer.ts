@@ -15,7 +15,7 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Battle, UnitSnap } from '../sim/battle';
 import type { Unit } from '../sim/unit';
-import type { HeightCache } from './heightCache';
+import { OUTSIDE_HEIGHT, type HeightCache } from './heightCache';
 import { barSymbolCanvas, topIconCanvas } from './icons';
 
 type BodyKind = 'foot' | 'horse' | 'elephant';
@@ -497,6 +497,7 @@ export class UnitLayer {
     const loose = s1.formation === 'loose' ? 0.35 : 0.12;
     const scatter = routing ? Math.min(14, s1.routTicks * 0.9) : 0;
     const cos = Math.cos(facing), sin = Math.sin(facing);
+    const hc = this.heights, hh = hc.h, hw = hc.nx + 1;
     for (let k = 0; k < shown; k++) {
       const r1 = v.seeds[k * 3], r2 = v.seeds[k * 3 + 1], r3 = v.seeds[k * 3 + 2];
       const rank = Math.floor(k / files);
@@ -515,7 +516,21 @@ export class UnitLayer {
       }
       const wx = x + f * cos - l * sin;
       const wz = z + f * sin + l * cos;
-      writeTRS(m, v.base + k, wx, this.heights.height(wx, wz), wz, Math.cos(ang), -Math.sin(ang), 1, 1, 1);
+      // Ground height and the matrix are written inline: calling helpers with these numbers in the
+      // hottest loop of the renderer would box them (garbage every frame).
+      let wy = OUTSIDE_HEIGHT;
+      const gx = wx / hc.cx, gz = wz / hc.cz;
+      if (gx >= 0 && gz >= 0 && gx <= hc.nx && gz <= hc.nz) {
+        const ix = gx < hc.nx ? Math.floor(gx) : hc.nx - 1, iz = gz < hc.nz ? Math.floor(gz) : hc.nz - 1;
+        const tx = gx - ix, tz = gz - iz, i = iz * hw + ix;
+        const ha = hh[i], hb = hh[i + 1], hd = hh[i + hw], he = hh[i + hw + 1];
+        wy = tx + tz <= 1 ? ha + (hb - ha) * tx + (hd - ha) * tz : he + (hd - he) * (1 - tx) + (hb - he) * (1 - tz);
+      }
+      const c = Math.cos(ang), sn = -Math.sin(ang), o = (v.base + k) * 16;
+      m[o] = c; m[o + 1] = 0; m[o + 2] = -sn; m[o + 3] = 0;
+      m[o + 4] = 0; m[o + 5] = 1; m[o + 6] = 0; m[o + 7] = 0;
+      m[o + 8] = sn; m[o + 9] = 0; m[o + 10] = c; m[o + 11] = 0;
+      m[o + 12] = wx; m[o + 13] = wy; m[o + 14] = wz; m[o + 15] = 1;
     }
     // Colours only change with the tint (recovering pulses, routing greys out).
     const tint = recovering ? 0.25 + 0.15 * Math.sin(time * 9) : routing ? 0.45 : 0;

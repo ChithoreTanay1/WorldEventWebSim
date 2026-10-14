@@ -26,7 +26,7 @@ export const FLANK = {
   shock: 0.35,
 };
 import type { Terrain } from './terrain';
-import type { Category, FormationDef, RangedWeapon } from './types';
+import type { Category, FormationDef, RangedWeapon, UnitType } from './types';
 import type { Unit } from './unit';
 
 /**
@@ -109,6 +109,65 @@ function chargeWeight(a: Unit): number {
   const cat = a.type.category;
   const base = cat === 'elephant' ? 1.3 : cat === 'cavalry' ? 1 : 0.5;
   return base * clamp(a.type.melee.chargeBonus / 100, 0.5, 1.5);
+}
+
+// ---------------------------------------------------------------- weight, armour and quirks
+
+export type Armour = 'heavy' | 'medium' | 'light';
+
+/** Armour class from the unit's stats: heavy foot, elephants and armoured lancers; light missile troops. */
+export function armourOf(t: UnitType): Armour {
+  const c = t.category, def = t.melee.defense;
+  if (c === 'elephant' || (c === 'infantry' && def >= 50) || (c === 'cavalry' && def >= 30 && t.melee.chargeBonus >= 90)) return 'heavy';
+  if (c === 'skirmisher' || c === 'missile' || (c === 'cavalry' && def <= 20) || (c === 'infantry' && def <= 30)) return 'light';
+  return 'medium';
+}
+
+/** Mass of a unit in a collision: elephants far above horse, horse above foot, armour adds. */
+export function weightOf(t: UnitType): number {
+  const base = t.category === 'elephant' ? 3 : t.category === 'cavalry' ? 1.6 : t.category === 'infantry' ? 1 : t.category === 'missile' ? 0.75 : 0.6;
+  const a = armourOf(t);
+  return base * (a === 'heavy' ? 1.25 : a === 'light' ? 0.85 : 1);
+}
+
+/** Tunable numbers for impacts and quirks. */
+export const IMPACT = {
+  /** Charge damage scales with (attacker weight / defender weight) to this power, within the clamp. */
+  massPower: 0.6,
+  massClamp: [0.4, 2.5] as [number, number],
+  /** Backlash on the charger scales with (defender weight / attacker weight) to this power. */
+  recoilPower: 0.8,
+  recoilClamp: [0.5, 3] as [number, number],
+  /** A defender below this organization share takes extra charge damage, up to x(1 + waver * 0.5). */
+  waverBelow: 0.5,
+  waver: 1.6,
+  /** A dash (running into the enemy without a full charge run-up): this share of a charge, plus the run-up. */
+  dashBase: 0.3,
+  dashRamp: 0.45,
+  /** Quirks. */
+  arrowsBluntElephants: 0.18, // each recent volley takes this share off an elephant's charge
+  elephantChargeFloor: 0.35,
+  arrowsMaddenElephants: 1.6, // org damage from missiles on elephants
+  braceRecoil: 1.5, // horse or elephants charging braced spears head-on
+  horsesFearElephants: 0.5, // horse charging elephants
+  horseFearShock: 1.5,
+  skirmishersScatter: 0.6, // charges into loose skirmishers
+  armourVsMissiles: { heavy: 0.8, medium: 1, light: 1.1 } as Record<Armour, number>,
+};
+
+/** The quirks that apply to a unit type, in words (unit cards). */
+export function unitQuirks(t: UnitType): string[] {
+  const q: string[] = [];
+  const a = armourOf(t);
+  if (a === 'heavy') q.push('Armoured: -20% damage from missiles');
+  if (a === 'light') q.push('Lightly protected: +10% damage from missiles');
+  if (t.category === 'elephant') q.push('Massed arrows blunt its charge and madden it (+60% morale loss from missiles)');
+  if (t.melee.antiCavalry) q.push('Braced spears: horse or elephants charging its front take heavy recoil');
+  if (t.category === 'cavalry') q.push('Horses fear elephants: half force when charging them');
+  if (t.category === 'skirmisher') q.push('Scatters before a charge: charges against it lose 40% of their force');
+  const w = weightOf(t);
+  q.push(`Weight ${w.toFixed(1)}: heavier units hit harder in a charge or a dash, lighter ones bounce off`);
+  return q;
 }
 
 /**
@@ -204,8 +263,14 @@ export interface ChargeResult {
   flank: number;
 }
 
-/** Charge impact on first contact (wiki "Charge Damage" and "Backlash"). */
-export function chargeImpact(ctx: CombatCtx, a: Unit, d: Unit): ChargeResult {
+/**
+ * Charge impact on first contact (wiki "Charge Damage" and "Backlash"), extended with weight: a heavy
+ * charger hits a lighter unit harder and a wavering unit (low organization) harder still, while a light
+ * unit crashing into a heavier one takes the damage itself. `scale` < 1 is a dash: running into the
+ * enemy without a full charge run-up. Quirks: massed arrows blunt elephants, braced spears, horses
+ * shying from elephants, skirmishers scattering.
+ */
+export function chargeImpact(ctx: CombatCtx, a: Unit, d: Unit, scale = 1): ChargeResult {
   const ta = terrainMods(ctx, d);
   const flank = flankOf(ctx, d, a);
   const sa = statForm(ctx, a);
@@ -219,7 +284,15 @@ export function chargeImpact(ctx: CombatCtx, a: Unit, d: Unit): ChargeResult {
   base *= 1 - 0.5 * overlapScale(a);
   base *= 1 + ta.chargeBonus;
   base *= 1 + sa.ownChargeMod;
-  base = Math.max(0, base);
+  // Weight and wavering defenders.
+  const ratio = weightOf(a.type) / weightOf(d.type);
+  base *= clamp(ratio, IMPACT.massClamp[0], IMPACT.massClamp[1]) ** IMPACT.massPower;
+  base *= 1 + Math.max(0, IMPACT.waverBelow - d.orgFrac) * IMPACT.waver;
+  // Quirks.
+  if (a.type.category === 'elephant') base *= Math.max(IMPACT.elephantChargeFloor, 1 - IMPACT.arrowsBluntElephants * a.volleys);
+  if (a.type.category === 'cavalry' && d.type.category === 'elephant') base *= IMPACT.horsesFearElephants;
+  if (d.type.category === 'skirmisher' || shapeForm(ctx, d).id === 'loose') base *= IMPACT.skirmishersScatter;
+  base = Math.max(0, base * scale);
   // Penetration effectiveness from attacker org: 1 at 95%+, 0 at 35%-, plus up to +0.1 support.
   const eff = clamp(1 - lowOrgScale(a) + 0.1 * clamp(ctx.field(a) / ORG_FIELD_CLAMP, 0, 1), 0, 1.1);
   const pen = (a.type.melee.chargePenetration + flank * a.type.melee.flankPenBonus) * eff;
@@ -242,8 +315,14 @@ export function chargeImpact(ctx: CombatCtx, a: Unit, d: Unit): ChargeResult {
   cond = Math.max(0, cond);
   const landed = clamp(1 - (base > 0 ? dmg / base : 0), 0, 1);
   const cat = d.type.category === 'skirmisher' ? 0 : d.type.category === 'cavalry' ? 0.75 : d.hasRan > 0 ? 0.75 : 1.5;
-  const backlash = Math.max(0, (lash * cond * landed * (1 - flank) * cat) / Math.max(0.75, res));
-  const aOrg = orgLoss(ctx, a, backlash, td.weapon.orgRatio, 10, 0);
+  let backlash = Math.max(0, (lash * cond * landed * (1 - flank) * cat) / Math.max(0.75, res));
+  // A lighter unit crashing into a heavier one recoils hard; braced spears punish horse and elephants.
+  backlash *= clamp(1 / ratio, IMPACT.recoilClamp[0], IMPACT.recoilClamp[1]) ** IMPACT.recoilPower;
+  const mounted = a.type.category === 'cavalry' || a.type.category === 'elephant';
+  if (mounted && td.antiCavalry && flank < 0.5) backlash *= IMPACT.braceRecoil;
+  backlash *= Math.max(scale, 0.5);
+  const fear = a.type.category === 'cavalry' && d.type.category === 'elephant' ? IMPACT.horseFearShock : 1;
+  const aOrg = orgLoss(ctx, a, backlash, td.weapon.orgRatio, 10, 0) * fear;
 
   return {
     defender: { hp: dmg * CASUALTIES.charge, org: dOrg },
@@ -291,6 +370,8 @@ export function rangedShot(ctx: CombatCtx, s: Unit, t: Unit, dist: number, share
   // Rear fire on line or column: +150% org (wiki), with an enfilade-capable weapon.
   let bonus = 0;
   if (r.weapon.enfilade && shapeForm(ctx, t).rearFireVulnerable && bearingFrom(t, s.x, s.z) > 135) bonus += 1.5;
-  const org = orgLoss(ctx, t, hp, r.weapon.orgRatio, 1, bonus, true);
-  return { hp: hp * CASUALTIES.ranged, org };
+  // Armour against arrows; elephants are maddened by them.
+  const armour = IMPACT.armourVsMissiles[armourOf(t.type)];
+  const org = orgLoss(ctx, t, hp * armour, r.weapon.orgRatio, 1, bonus, true) * (t.type.category === 'elephant' ? IMPACT.arrowsMaddenElephants : 1);
+  return { hp: hp * armour * CASUALTIES.ranged, org };
 }

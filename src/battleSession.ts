@@ -65,7 +65,13 @@ export class BattleSession {
       replay: () => this.startReplay(),
       setSpeed: (i) => (this.speed = i),
       restart: () => this.restart(),
-      select: (ids) => this.controls.select(ids),
+      select: (ids, add) => this.controls.select(ids, add),
+      focus: (ids) => {
+        const us = ids.map((id) => this.battle.unit(id));
+        const x = us.reduce((s, u) => s + u.x, 0) / us.length, z = us.reduce((s, u) => s + u.z, 0) / us.length;
+        this.view.rig.follow = null;
+        this.view.rig.target.set(x, 0, z);
+      },
       exit: exit ? () => exit(this.battle) : undefined,
     });
     this.resetCamera();

@@ -1,11 +1,12 @@
 // DOM panels over the canvas, refreshed a few times a second.
 import type { Battle } from '../sim/battle';
-import { maxRange } from '../sim/combat';
+import { maxRange, unitQuirks } from '../sim/combat';
 import type { OrderType, Scenario, UnitStatus } from '../sim/types';
 import type { Unit } from '../sim/unit';
 import { markerCanvas } from '../render/icons';
 import { ORDER_COLORS } from '../render/overlay';
 import { FORMATION_KEYS, ORDER_KEYS, type Controls } from '../input/controls';
+import { Roster } from './roster';
 
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', ...kids: (Node | string)[]): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
@@ -31,7 +32,9 @@ export interface HudHandlers {
   replay(): void;
   setSpeed(i: number): void;
   restart(): void;
-  select(ids: number[]): void;
+  select(ids: number[], add?: boolean): void;
+  /** Bring the camera to these units. */
+  focus(ids: number[]): void;
   /** Campaign battles: leave the field and carry the result back to the map. */
   exit?(): void;
 }
@@ -44,6 +47,7 @@ export class Hud {
   private readonly replayBtn = h('button', 'btn', '⟲ Replay turn');
   private readonly speedBtns: HTMLButtonElement[];
   private readonly groupsBar = h('div', 'groups');
+  private readonly roster: Roster;
   private readonly armies = h('div', 'armies');
   private readonly objectives = h('div', 'objectives');
   private readonly log = h('div', 'log');
@@ -86,12 +90,14 @@ export class Hud {
       h('div', 'panel-title', 'Battle log'), h('div', 'log-wrap', this.log),
     );
     this.buildOrderBar();
-    root.append(top, this.groupsBar, right, this.card, this.hint, this.orderBar, this.overlay, this.tooltip, this.dragLabel);
+    this.roster = new Roster(battle, { select: (ids, add) => on.select(ids, add), focus: (ids) => on.focus(ids), icon: (i, c) => this.icon(i, c) });
+    root.append(top, this.groupsBar, this.roster.el, right, this.card, this.hint, this.orderBar, this.overlay, this.tooltip, this.dragLabel);
     this.renderGroups();
   }
 
   setBattle(b: Battle) {
     this.battle = b;
+    this.roster.setBattle(b);
     this.logCount = -1;
     this.selection = [];
     this.renderGroups();
@@ -143,6 +149,8 @@ export class Hud {
 
   setSelection(ids: number[]) {
     this.selection = ids;
+    this.roster.setSelection(ids);
+    this.roster.update();
   }
 
   // ------------------------------------------------------------ groups bar
@@ -172,6 +180,7 @@ export class Hud {
   // ------------------------------------------------------------ refresh
 
   update(speed: number, resolvingReplay: boolean) {
+    this.roster.update();
     const b = this.battle;
     const resolving = b.phase === 'resolving';
     this.turnLabel.textContent = b.phase === 'deployment' ? 'Deployment' : `Turn ${Math.min(b.battleTurn(), b.rules.turnLimit)} / ${b.rules.turnLimit}`;
@@ -367,6 +376,7 @@ export class Hud {
         ['RNG', t.ranged ? `${t.ranged.attack} · ${maxRange(t.ranged.weapon)}m` : '—'], ['MOVE', `${t.walk}/${t.run}`], ['RAD', `${t.orgRadius}m +${t.orgRadiusBonus}`],
       ].map(([k, v]) => h('div', 'cs', h('span', '', String(k)), h('b', '', String(v))))),
       t.traits ? h('div', 'card-traits', ...t.traits.map((x) => h('span', `trait ${x.startsWith('-') ? 'debuff' : 'buff'}`, x))) : '',
+      h('ul', 'card-quirks', ...unitQuirks(t).map((q) => h('li', '', q))),
       h('p', 'card-note', t.note ?? ''),
     );
   }
