@@ -326,13 +326,13 @@ export class Controls {
     } else if (d.mode === 'route') {
       this.preview = { routes: this.curvedRoutes(cleanStroke(d.points, false), this.commandable()) };
     } else {
-      // A formation line: no release hook, and a stroke drawn nearly straight is laid perfectly straight.
+      // A formation line: units line up exactly along the stroke as drawn (minus the release hook).
       const { fx, fz } = this.view.rig.groundAxes();
-      this.preview = { placements: planLine(cleanStroke(d.points, true), this.commandable().map((u) => this.lineUnit(u)), { x: fx, z: fz }) };
+      this.preview = { placements: planLine(cleanStroke(d.points, false), this.commandable().map((u) => this.lineUnit(u)), { x: fx, z: fz }) };
     }
     // The stroke as drawn, faint under the planned curves, so a rounded-off corner reads as the unit's
     // turning circle rather than a glitch. A line-formation drag shows the curve units are laid along.
-    if (d.mode === 'line') this.view.overlay.setTrail(cleanStroke(d.points, true), '#f4ecd4');
+    if (d.mode === 'line') this.view.overlay.setTrail(cleanStroke(d.points, false), '#f4ecd4');
     else if (d.mode === 'rotate') this.view.overlay.setTrail(null);
     else this.view.overlay.setTrail(cleanStroke(d.points, false), '#f4ecd4', 0.3, 0.45);
   }
@@ -349,7 +349,7 @@ export class Controls {
       case 'rotate': return 'Rotate: unit turns on the spot to face the drag' + tail;
       case 'path': return (deploy ? 'Place at the end of the drawn path' : `${type} along the drawn path`) + tail;
       case 'route': return (deploy ? `Place ${n} unit${n > 1 ? 's' : ''} at the route's end` : `${type}: ${n} unit${n > 1 ? 's follow' : ' follows'} the drawn route${n > 1 ? ' in parallel lanes' : ''}`) + tail;
-      case 'line': return `${deploy ? 'Place' : type} ${n} units in a line along the curve (rows by role)` + tail;
+      case 'line': return `${deploy ? 'Place' : type} ${n} units along the line as drawn` + tail;
       default: return null;
     }
   }

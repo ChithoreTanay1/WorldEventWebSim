@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanStroke, planClickMove, planLine, roleRow, routeLanes, simplifyPath, smoothPath, type LineUnit } from '../src/input/formation';
+import { cleanStroke, planClickMove, planLine, routeLanes, simplifyPath, smoothPath, type LineUnit } from '../src/input/formation';
 
 const unit = (id: number, x: number, z: number, row = 1, frontage = 50, depth = 10): LineUnit => ({ id, x, z, facing: 0, frontage, depth, row });
 
@@ -26,13 +26,31 @@ describe('draw-the-line placement', () => {
     expect(Math.abs(Math.abs(flipped[0].facing) - Math.PI)).toBeLessThan(0.01);
   });
 
-  it('stacks mixed selections front to back by role (skirmishers, lines, other infantry, cavalry)', () => {
-    const units = [unit(0, 100, 100, roleRow('cavalry', 'cavalry')), unit(1, 100, 150, roleRow('skirmisher', 'loose')), unit(2, 100, 200, roleRow('infantry', 'line'))];
+  it('lays the units along the line exactly as drawn: one row from its start to its end', () => {
+    const units = [0, 1, 2, 3].map((i) => unit(i, 100, 80 + i * 50));
     const out = planLine([{ x: 200, z: 0 }, { x: 200, z: 300 }], units, { x: 1, z: 0 });
-    const xOf = (id: number) => out.find((p) => p.id === id)!.x;
-    // Facing +x, so "front" is larger x.
-    expect(xOf(1)).toBeGreaterThan(xOf(2));
-    expect(xOf(2)).toBeGreaterThan(xOf(0));
+    const zs = out.map((p) => p.z).sort((a, b) => a - b);
+    expect(out.every((p) => Math.abs(p.x - 200 + 5) < 0.5)).toBe(true); // all in one row on the line (half a depth behind it)
+    expect(zs[0]).toBeLessThanOrEqual(25.5); // first unit's edge at the stroke's start
+    expect(zs[3]).toBeGreaterThanOrEqual(274.5); // last unit's edge at its end
+  });
+
+  it('follows a curved stroke, each unit facing out from the curve where it stands', () => {
+    const stroke = [];
+    for (let i = 0; i <= 30; i++) stroke.push({ x: 200 + 60 * Math.sin((i / 30) * Math.PI), z: i * 10 });
+    const out = planLine(stroke, [0, 1, 2].map((i) => unit(i, 100, 100 * i)), { x: 1, z: 0 });
+    const mid = out.find((p) => Math.abs(p.z - 150) < 30)!;
+    expect(mid.x).toBeGreaterThan(240);
+    const ends = out.filter((p) => p !== mid);
+    expect(ends.every((p) => Math.abs(p.facing - mid.facing) > 0.3)).toBe(true);
+  });
+
+  it('only when the stroke is too short does a second row form behind', () => {
+    // Two 30 m units fit side by side on a 70 m stroke; the other two stand behind them.
+    const units = [0, 1, 2, 3].map((i) => unit(i, 100, i * 40, 1, 30));
+    const out = planLine([{ x: 200, z: 0 }, { x: 200, z: 70 }], units, { x: 1, z: 0 });
+    const rows = new Set(out.map((p) => Math.round(p.x)));
+    expect(rows.size).toBe(2);
   });
 
   it('click-move keeps a group side by side, facing the direction of travel', () => {
@@ -98,14 +116,4 @@ describe('formation lines without crossing', () => {
     for (let i = 0; i < 8; i++) for (let j = i + 1; j < 8; j++) expect(cross(seg(i), seg(j)), `${i}-${j}`).toBe(false);
   });
 
-  it('a small rear row packs behind the line instead of spreading to its ends', () => {
-    const units: LineUnit[] = [
-      ...[0, 1, 2, 3, 4, 5].map((i) => ({ id: i, x: 0, z: i * 40, facing: 0, frontage: 30, depth: 6, row: 1 })),
-      { id: 10, x: -30, z: 90, facing: 0, frontage: 40, depth: 18, row: 2 },
-      { id: 11, x: -30, z: 140, facing: 0, frontage: 40, depth: 18, row: 2 },
-    ];
-    const out = planLine([{ x: 100, z: -50 }, { x: 100, z: 300 }], units, { x: 1, z: 0 });
-    const a = out.find((p) => p.id === 10)!, b = out.find((p) => p.id === 11)!;
-    expect(Math.abs(a.z - b.z)).toBeLessThan(60);
-  });
 });

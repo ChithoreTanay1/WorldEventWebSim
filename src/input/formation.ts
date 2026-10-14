@@ -1,6 +1,5 @@
-// Draw-the-line maths (pure, unit tested). Following the Lines of Battle wiki: dragging with several
-// units lays the selection along the line, stacked front to back by role (skirmishers, then lines,
-// then other infantry, then cavalry); facing comes from the line's angle.
+// Draw-the-line maths (pure, unit tested). Dragging with several units lays them along the line exactly
+// as drawn, one row from end to end; facing comes from the line's angle at each unit.
 import { planCurve } from '../sim/pathing';
 import type { XZ } from '../sim/types';
 
@@ -122,9 +121,12 @@ export function pointAt(path: XZ[], s: number): { p: XZ; t: XZ } {
 }
 
 /**
- * Lay `units` along `rawPath` in rows by role. `forward` picks which side of the line is the front
- * (we use the camera's view direction: drawing left-to-right faces away from the viewer).
- * Units are matched to places by sorting both along the line, so their paths don't cross.
+ * Lay `units` along the line exactly as it was drawn: one row from the start of the stroke to its end,
+ * spread evenly over its whole length (a single unit stands at its middle), each unit facing out from
+ * the line at its own point of the curve. `forward` picks which side is the front (the camera's view
+ * direction: drawing left to right faces away from the viewer). Units take places in the order that
+ * keeps their paths from crossing. Only if the stroke is too short for everyone do the rest form a
+ * second row behind, packed where those units already stand.
  */
 export function planLine(rawPath: XZ[], units: LineUnit[], forward: XZ): Placement[] {
   if (units.length === 0 || rawPath.length < 2) return [];
@@ -132,62 +134,72 @@ export function planLine(rawPath: XZ[], units: LineUnit[], forward: XZ): Placeme
   const L = pathLength(path);
   const start = path[0], end = path[path.length - 1];
   const dir = { x: end.x - start.x, z: end.z - start.z };
-  const rows = [...new Set(units.map((u) => u.row))].sort((a, b) => a - b);
+  // Units in their order across the line, then cut into rows that fit the drawn length.
+  const ordered = [...units].sort((a, b) => a.x * dir.x + a.z * dir.z - (b.x * dir.x + b.z * dir.z));
+  const rows: LineUnit[][] = [[]];
+  let used = 0;
+  for (const u of ordered) {
+    const need = (rows[rows.length - 1].length ? GAP : 0) + u.frontage;
+    if (rows[rows.length - 1].length && used + need > L + 1) {
+      rows.push([]);
+      used = 0;
+    }
+    rows[rows.length - 1].push(u);
+    used += rows[rows.length - 1].length > 1 ? need : u.frontage;
+  }
   const out: Placement[] = [];
   let back = 0;
   rows.forEach((row, ri) => {
-    const inRow = units.filter((u) => u.row === row).sort((a, b) => a.x * dir.x + a.z * dir.z - (b.x * dir.x + b.z * dir.z));
-    const width = inRow.reduce((s, u) => s + u.frontage, 0) + GAP * (inRow.length - 1);
-    let gap: number, s: number;
-    if (ri === 0) {
-      // The front row spreads over the whole line if it is long enough, otherwise it is centred.
-      const spare = Math.max(0, L - width);
-      gap = inRow.length > 1 ? GAP + spare / (inRow.length - 1) : 0;
-      s = inRow.length > 1 ? Math.min(0, (L - width) / 2) : L / 2 - inRow[0].frontage / 2;
-    } else {
-      // Rows behind pack shoulder to shoulder, centred where those units already stand along the
-      // line, so a couple of elephants or a cavalry reserve don't get flung to opposite ends.
-      gap = GAP;
-      const centre = arcPosition(path, inRow.reduce((a, u) => a + u.x, 0) / inRow.length, inRow.reduce((a, u) => a + u.z, 0) / inRow.length);
-      s = width >= L ? (L - width) / 2 : Math.max(0, Math.min(L - width, centre - width / 2));
-    }
-    const depth = Math.max(...inRow.map((u) => u.depth));
-    for (const u of inRow) {
-      const { p, t } = pointAt(path, s + u.frontage / 2);
-      let nx = t.z, nz = -t.x;
-      if (nx * forward.x + nz * forward.z < 0) (nx = -nx), (nz = -nz);
-      const off = back + depth / 2;
-      out.push({ id: u.id, x: p.x - nx * off, z: p.z - nz * off, facing: Math.atan2(nz, nx) });
-      s += u.frontage + gap;
-    }
-    untangle(out.slice(out.length - inRow.length), inRow);
-    back += depth + ROW_GAP;
-  });
-  return out;
-}
-
-/**
- * Within one row, swap the places of two units of the same width whenever that shortens their marches
- * (least total distance, so two paths that cross are always swapped): no crossing on the way to the line.
- */
-function untangle(places: Placement[], units: LineUnit[]) {
-  const byId = new Map(units.map((u) => [u.id, u]));
-  const cost = (u: LineUnit, p: Placement) => Math.hypot(u.x - p.x, u.z - p.z);
-  for (let pass = 0, swapped = true; swapped && pass < 8; pass++) {
-    swapped = false;
-    for (let i = 0; i < places.length; i++) {
-      for (let j = i + 1; j < places.length; j++) {
-        const a = byId.get(places[i].id)!, b = byId.get(places[j].id)!;
-        if (Math.abs(a.frontage - b.frontage) > 1 || Math.abs(a.depth - b.depth) > 1) continue;
-        if (cost(a, places[j]) + cost(b, places[i]) < cost(a, places[i]) + cost(b, places[j]) - 1e-6) {
-          const id = places[i].id;
-          places[i].id = places[j].id;
-          places[j].id = id;
-          swapped = true;
+    const place = (order: LineUnit[]): Placement[] => {
+      const width = order.reduce((s, u) => s + u.frontage, 0) + GAP * (order.length - 1);
+      let gap: number, s: number;
+      if (ri === 0) {
+        // The front row spans the stroke: first unit at its start, last at its end.
+        gap = order.length > 1 ? Math.max(GAP, (L - order.reduce((a, u) => a + u.frontage, 0)) / (order.length - 1)) : 0;
+        s = order.length > 1 ? Math.min(0, (L - width) / 2) : L / 2 - order[0].frontage / 2;
+      } else {
+        gap = GAP;
+        const centre = arcPosition(path, order.reduce((a, u) => a + u.x, 0) / order.length, order.reduce((a, u) => a + u.z, 0) / order.length);
+        s = width >= L ? (L - width) / 2 : Math.max(0, Math.min(L - width, centre - width / 2));
+      }
+      const depth = Math.max(...order.map((u) => u.depth));
+      return order.map((u) => {
+        const { p, t } = pointAt(path, s + u.frontage / 2);
+        let nx = t.z, nz = -t.x;
+        if (nx * forward.x + nz * forward.z < 0) (nx = -nx), (nz = -nz);
+        const off = back + depth / 2;
+        s += u.frontage + gap;
+        return { id: u.id, x: p.x - nx * off, z: p.z - nz * off, facing: Math.atan2(nz, nx) };
+      });
+    };
+    // Order within the row: start from the order across the line, then swap any two units while it
+    // shortens their combined march (two crossing paths are always longer than uncrossed ones).
+    let order = row;
+    let best = place(order);
+    const cost = (pl: Placement[]) => pl.reduce((a, p, i) => a + Math.hypot(order[i].x - p.x, order[i].z - p.z), 0);
+    let bestCost = cost(best);
+    for (let pass = 0, improved = true; improved && pass < 6; pass++) {
+      improved = false;
+      for (let i = 0; i < order.length; i++) {
+        for (let j = i + 1; j < order.length; j++) {
+          const trial = [...order];
+          [trial[i], trial[j]] = [trial[j], trial[i]];
+          const prev = order;
+          order = trial;
+          const pl = place(trial);
+          const c = cost(pl);
+          if (c < bestCost - 1e-6) {
+            best = pl;
+            bestCost = c;
+            improved = true;
+          } else order = prev;
         }
       }
     }
-  }
+    out.push(...best);
+    back += Math.max(...row.map((u) => u.depth)) + ROW_GAP;
+  });
+  return out;
 }
 
 /** Arc length along `path` of the point on it nearest to (x, z). */
